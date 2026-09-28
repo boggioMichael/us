@@ -1,0 +1,22 @@
+[package]
+name = "syrup-capture"
+description = "Frame sources for Syrup Universal: a game window or the screen (Windows), a video, a folder of images, frames in memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+syrup-core.workspace = true
+image.workspace = true
+serde.workspace = true
+
+# Window enumeration and capture only. Nothing here sends input to anything.
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,26 @@
+[package]
+name = "syrup-perception"
+description = "Universal perception for Syrup: frame sampling, stable-interface discovery, bars, text, scenes, motion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+syrup-core.workspace = true
+syrup-paint.workspace = true
+syrup.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Windows' own OCR engine (Windows.Media.Ocr).
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+syrup-testgames.workspace = true
+syrup-capture.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "syrup-desktop"
+description = "The syrup program: live coaching, replays, simulations, research, memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "syrup"
+path = "src/main.rs"
+
+[dependencies]
+syrup-core.workspace = true
+
+[lints]
+workspace = true

@@ -280,6 +280,11 @@ pub struct StateEngine {
     idle_flagged: bool,
     objective: Option<String>,
     level_up_ms: Option<u64>,
+    /// Each concept's last value, whatever element it was read from (an
+    /// element can be lost and found again as a new one between two reads).
+    last_known: BTreeMap<String, ConceptValue>,
+    /// Concepts already announced as learned, and where.
+    announced: Vec<(String, NormRect)>,
     /// Minimum confidence for a concept to be reported.
     pub min_confidence: f32,
 }
@@ -307,6 +312,8 @@ impl StateEngine {
             idle_flagged: false,
             objective: None,
             level_up_ms: None,
+            last_known: BTreeMap::new(),
+            announced: Vec::new(),
             min_confidence: 0.35,
         }
     }
@@ -321,6 +328,24 @@ impl StateEngine {
 
     pub fn state(&self) -> &GameState {
         &self.state
+    }
+
+    /// For plugins that add or confirm concepts after each update.
+    pub fn state_mut(&mut self) -> &mut GameState {
+        &mut self.state
+    }
+
+    /// The player says a concept is wrong: the element it was read from loses its claim to it.
+    pub fn doubt(&mut self, concept: &str) {
+        let Some(key) = self.assigned.get(concept).cloned() else { return };
+        if let Some(t) = self.tracks.get_mut(&key)
+            && let Some(spec) = spec(concept)
+        {
+            t.add(spec.name, -0.8, "the player said this was wrong");
+            if t.hint.as_ref().is_some_and(|h| h.0 == concept && !h.2) {
+                t.hint = None;
+            }
+        }
     }
 
     pub fn reset(&mut self) {
@@ -503,12 +528,14 @@ impl StateEngine {
             let lower = item.text.to_lowercase();
             // Sentences and chat lines ("[All] Mika: ...") are not interface values.
             let readings = if is_speech(&item.text) { Vec::new() } else { parse(&item.text) };
+            let tokens = item.text.split_whitespace().count();
+            // "Defeat the Mossy King" is an objective; "DEFEAT" on its own is a
+            // result screen, and chat about a quest is chat.
             let objective_like = OBJECTIVE_WORDS.iter().any(|w| crate::has_word(&lower, w));
-            if objective_like && item.text.len() >= 6 && !by_bar {
+            if objective_like && item.text.len() >= 6 && tokens >= 2 && !by_bar && !is_speech(&item.text) {
                 objective_text = Some(item);
                 continue;
             }
-            let tokens = item.text.split_whitespace().count();
             for (n, l) in readings.iter().enumerate() {
                 if by_bar && matches!(l.reading, Reading::Ratio { .. } | Reading::Percent(_)) {
                     continue;
@@ -867,7 +894,12 @@ impl StateEngine {
         let old = std::mem::take(&mut self.state.concepts);
         for (name, cv) in &concepts {
             let resource = spec(name).is_some_and(|s| s.resource);
-            let before = old.get(name).filter(|o| o.source == cv.source);
+            // The same element's last value; or, when the element was found again
+            // under a new id, the concept's last value if it is recent.
+            let before = old
+                .get(name)
+                .filter(|o| o.source == cv.source)
+                .or_else(|| self.last_known.get(name).filter(|o| now.saturating_sub(o.updated_ms) < 60_000));
             if let (Some(b), Some(now_f)) = (before.and_then(|b| b.fraction()), cv.fraction())
                 && resource
                 && cv.unit == ConceptUnit::Fraction
@@ -937,7 +969,8 @@ impl StateEngine {
                 let kind = if v > b { TransitionKind::CounterIncreased } else { TransitionKind::CounterDecreased };
                 let conf = cv.confidence.value();
                 self.transition(out, now, kind, name, Some(b), Some(v), String::new(), conf);
-                if name == "level" && v > b {
+                // A level goes up a little at a time; a big jump is a misread.
+                if name == "level" && v > b && v - b <= 5.0 {
                     self.level_up_ms = Some(now);
                     self.transition(out, now, TransitionKind::LevelUp, "level", Some(b), Some(v), String::new(), conf);
                 }
@@ -955,11 +988,23 @@ impl StateEngine {
                 }
             }
         }
-        // Newly learned concepts.
+        for (name, cv) in &concepts {
+            if cv.value.is_some() || cv.text.is_some() {
+                self.last_known.insert(name.clone(), cv.clone());
+            }
+        }
+        // Newly learned concepts (once per concept and place: an element found
+        // again, or read under a new id, is not news).
         for (name, cv) in &concepts {
             let t = self.tracks.get_mut(&cv.source).expect("assigned track exists");
             if cv.confidence.value() >= 0.55 && t.announced.as_deref() != Some(name) {
                 t.announced = Some(name.clone());
+                let norm = t.norm;
+                if self.announced.iter().any(|(c, n)| c == name && n.iou(&norm) > 0.3) {
+                    continue;
+                }
+                self.announced.push((name.clone(), norm));
+                let t = self.tracks.get_mut(&cv.source).expect("assigned track exists");
                 out.learned.push(ConceptLearned {
                     concept: name.clone(),
                     source: cv.source.clone(),

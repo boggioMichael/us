@@ -1,5 +1,6 @@
 [package]
 name = "syrup-avatar"
+description = "Syrup, the Maplesyrup dog: a face, a hat for the game being played, the S medallion, and an expression"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,10 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+syrup-paint.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

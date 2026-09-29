@@ -260,6 +260,29 @@ impl SceneTracker {
     }
 }
 
+/// Phrases of `list` that make up (nearly) a whole line, away from the
+/// screen's edges: "YOU WIN!" in the middle is a result screen; "you win the
+/// round", "Bob died" in the chat and "Quest complete!" in a corner tracker
+/// are not.
+fn phrases_alone<'a>(text: &[TextItem], frame: (u32, u32), list: &[&'a str]) -> Vec<&'a str> {
+    let (fw, fh) = (frame.0.max(1) as f32, frame.1.max(1) as f32);
+    let mut out = Vec::new();
+    for t in text {
+        let (cx, cy) = t.rect.center();
+        if !(fw * 0.2..=fw * 0.8).contains(&cx) || !(fh * 0.12..=fh * 0.88).contains(&cy) {
+            continue;
+        }
+        let w = words(&t.text);
+        let n = w.split(' ').filter(|s| !s.is_empty()).count();
+        for p in list {
+            if has_phrase(&w, p) && n <= p.split(' ').count() + 1 && !out.contains(p) {
+                out.push(*p);
+            }
+        }
+    }
+    out
+}
+
 fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
     let m = f.metrics;
     let fh = f.frame.1.max(1) as f32;
@@ -284,7 +307,9 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
         [(DEFEAT_WORDS, SceneKind::Defeat), (VICTORY_WORDS, SceneKind::Victory), (LOADING_WORDS, SceneKind::Loading)]
     {
         let big_hits = phrases_in(&big, list);
-        let hits = phrases_in(&all, list);
+        // Loading words are fine anywhere ("Loading map..."); results must stand alone.
+        let hits =
+            if kind == SceneKind::Loading { phrases_in(&all, list) } else { phrases_alone(f.text, f.frame, list) };
         if let Some(p) = big_hits.first() {
             consider(kind, 0.9, format!("big \"{p}\" on screen"));
         } else if let Some(p) = hits.first() {
@@ -329,6 +354,13 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
         consider(SceneKind::Gameplay, c, format!("{} interface elements and motion", f.interface_regions));
     } else if m.change > 0.05 {
         consider(SceneKind::Gameplay, 0.45, "motion".into());
+    } else if f.bars > 0 || f.interface_regions >= 3 {
+        // A turn-based game waits for the player with its interface up; a menu hides it.
+        consider(
+            SceneKind::Gameplay,
+            0.5,
+            format!("the game's interface is up ({} elements), nothing moving", f.interface_regions),
+        );
     }
     if m.change < 0.005 && f.text.len() >= 3 && f.bars == 0 && f.interface_regions == 0 {
         consider(SceneKind::Menu, 0.45, "a still screen of text".into());
@@ -383,6 +415,34 @@ mod tests {
         assert_eq!(l.kind, SceneKind::Menu);
         let (l, _) = t.update(&features(&[], 0.2, 4));
         assert_eq!(l.kind, SceneKind::Gameplay);
+    }
+
+    #[test]
+    fn small_result_words_count_only_on_their_own() {
+        // A round won in a sentence is not a victory screen; "YOU WIN!" alone is.
+        let round = [text("You win the round!", 20)];
+        assert_ne!(classify(&features(&round, 0.0, 3), false).0, SceneKind::Victory);
+        let chat = [text("Bob died", 14)];
+        assert_ne!(classify(&features(&chat, 0.1, 3), false).0, SceneKind::Defeat);
+        let alone = [text("YOU WIN!", 20)];
+        assert_eq!(classify(&features(&alone, 0.0, 3), false).0, SceneKind::Victory);
+        // A quest tracker in the corner says "Quest complete!" all the time.
+        let mut corner = text("Quest complete!", 16);
+        corner.rect = Rect::new(760, 20, 180, 16);
+        assert_ne!(classify(&features(&[corner], 0.1, 3), false).0, SceneKind::Victory);
+        let loading = [text("Loading map, please wait", 14)];
+        assert_eq!(classify(&features(&loading, 0.0, 0), false).0, SceneKind::Loading);
+    }
+
+    #[test]
+    fn a_still_screen_with_the_interface_up_is_play() {
+        // A card table waiting for the player: nothing moves, the HUD is there.
+        let hud = [text("SCORE 1 - 2", 20), text("ROUND 4", 20), text("Your turn", 20)];
+        let (kind, _, why) = classify(&features(&hud, 0.0, 4), false);
+        assert_eq!(kind, SceneKind::Gameplay, "{why}");
+        // Without an interface, a still screen of text is a menu.
+        let (kind, _, _) = classify(&features(&hud, 0.0, 0), false);
+        assert_eq!(kind, SceneKind::Menu);
     }
 
     #[test]

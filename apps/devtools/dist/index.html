@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syrup devtools</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header><b>Syrup devtools</b> <span id="status" class="muted"></span><span id="offline" class="tag warn" style="display:none">not connected</span></header>
+<main>
+  <section class="wide"><h2>What Syrup sees</h2><img id="frame" alt="the frame, with everything perception found drawn on it"><div id="timings"></div><div id="texts" class="small"></div></section>
+  <section><h2>Syrup</h2><img id="overlay" alt="Syrup's overlay, as the player sees it"><div id="modes"></div>
+    <form id="ask" class="small"><input id="topic" placeholder="look something up, e.g. a boss name"> <button>🔎 research</button></form></section>
+  <section><h2>Game</h2><div id="game"></div>
+    <form id="confirm" class="small"><input id="title" placeholder="the game's name, if Syrup is wrong"> <button>this game is…</button></form></section>
+  <section><h2>Concepts</h2><div id="activity" class="muted small"></div><div id="concepts"></div><div id="hypotheses"></div></section>
+  <section><h2>Advice</h2><ul id="advice"></ul></section>
+  <section><h2>Player</h2><div id="player"></div></section>
+  <section><h2>Knowledge</h2><div id="knowledge"></div></section>
+  <section><h2>Profile</h2><div id="profile"></div></section>
+  <section class="wide"><h2>Events</h2><ul id="events"></ul></section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

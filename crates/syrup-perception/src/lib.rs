@@ -34,7 +34,7 @@ use syrup_core::{Frame, Observation, Rect, SceneKind, UiKind};
 
 pub use annotate::{annotate, explain};
 pub use sampler::{FrameSampler, SampleDecision, SamplerConfig};
-pub use text::{OcrEngine, TextReaderConfig, best_engine, engine_named};
+pub use text::{NoOcr, OcrEngine, TesseractOcr, TextReaderConfig, best_engine, engine_named};
 
 use crate::pixels::WorkImage;
 use crate::regions::{Candidate, CandidateKind, RegionTracker};

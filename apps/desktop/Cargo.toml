@@ -1,6 +1,6 @@
 [package]
 name = "syrup-desktop"
-description = "The syrup program: live coaching, replays, simulations, research, memory"
+description = "The syrup program (live coaching, replays, simulations, research, memory) and syrup-testgame (a synthetic game in a window)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,8 +10,27 @@ publish.workspace = true
 name = "syrup"
 path = "src/main.rs"
 
+[[bin]]
+name = "syrup-testgame"
+path = "src/testgame.rs"
+
 [dependencies]
 syrup-core.workspace = true
+syrup-capture.workspace = true
+syrup-perception.workspace = true
+syrup-knowledge.workspace = true
+syrup-memory.workspace = true
+syrup-coach.workspace = true
+syrup-avatar.workspace = true
+syrup-ui.workspace = true
+syrup-runtime.workspace = true
+syrup-testgames.workspace = true
+syrup-recognition.workspace = true
+syrup-player.workspace = true
+image.workspace = true
+serde_json.workspace = true
+clap = { version = "4", default-features = false, features = ["std", "help", "usage", "error-context"] }
+minifb.workspace = true
 
 [lints]
 workspace = true

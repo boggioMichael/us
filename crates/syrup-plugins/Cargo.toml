@@ -1,5 +1,6 @@
 [package]
 name = "syrup-plugins"
+description = "Optional game plugins: the plugin interface, a manager, data plugins from JSON, and MapleStory (carried over from Maplesyrup)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,10 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+syrup-state.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

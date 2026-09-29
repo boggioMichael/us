@@ -18,7 +18,7 @@ use image::RgbaImage;
 use syrup_core::observation::TextItem;
 use syrup_core::{Confidence, Frame, Rect};
 
-use crate::pixels::luma;
+use crate::pixels::{luma, thumb_difference, thumbnail};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OcrWord {
@@ -496,6 +496,9 @@ pub struct TextReader {
     done: Option<Receiver<Done>>,
     fresh_full: bool,
     fresh_regions: HashSet<u32>,
+    /// A thumbnail of the frame last read whole: the screen changing a lot
+    /// since (a fade, a slow transition) calls for another read.
+    full_thumb: Vec<u8>,
     /// Reads performed (for telemetry).
     pub reads: u64,
 }
@@ -599,6 +602,7 @@ impl TextReader {
             done,
             fresh_full: false,
             fresh_regions: HashSet::new(),
+            full_thumb: Vec::new(),
             reads: 0,
         }
     }
@@ -615,6 +619,7 @@ impl TextReader {
         self.last_full_ms = None;
         self.full_items.clear();
         self.regions.clear();
+        self.full_thumb.clear();
     }
 
     fn submit(&mut self, job: Job) {
@@ -668,9 +673,16 @@ impl TextReader {
         }
         let now = frame.timestamp_ms;
         let (fw, fh) = frame.size();
-        let full_due = self.last_full_ms.is_none_or(|t| now.saturating_sub(t) >= self.cfg.full_every_ms) || force_full;
+        let thumb = thumbnail(&frame.image, 48, 27);
+        // A different screen since the last whole read (however gradually it came).
+        let moved_on = !self.full_thumb.is_empty()
+            && thumb_difference(&thumb, &self.full_thumb) > 0.06
+            && self.last_full_ms.is_some_and(|t| now.saturating_sub(t) >= 400);
+        let full_due =
+            self.last_full_ms.is_none_or(|t| now.saturating_sub(t) >= self.cfg.full_every_ms) || force_full || moved_on;
         if full_due && !self.pending_full {
             self.last_full_ms = Some(now);
+            self.full_thumb = thumb;
             self.submit(Job::Full { image: frame.image.clone(), ts: now });
         }
         // Regions: never read first, then changed ones; bars before other things; small before big.

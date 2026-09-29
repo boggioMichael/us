@@ -1,5 +1,5 @@
 //! Runs perception on a test game or a recording and saves annotated frames:
-//! `cargo run -p syrup-perception --example perceive -- <dungeon|scroller|cards|path> <seconds> <out-dir> [ocr]`
+//! `cargo run -p syrup-perception --example perceive -- <dungeon|scroller|cards|path> <seconds> <out-dir> [ocr] [seed]`
 
 use std::sync::Arc;
 
@@ -16,7 +16,9 @@ fn main() {
     let ocr = args.get(3).is_some_and(|s| s == "ocr");
     std::fs::create_dir_all(&out).unwrap();
     let mut source: Box<dyn FrameSource> = match GameKind::parse(&what) {
-        Some(kind) => Box::new(Session::of(kind, 11, 10.0, Some(seconds))),
+        Some(kind) => {
+            Box::new(Session::of(kind, args.get(4).and_then(|s| s.parse().ok()).unwrap_or(11), 10.0, Some(seconds)))
+        }
         None => {
             let src = syrup_capture::VideoSource::open_at(
                 std::path::Path::new(&what),

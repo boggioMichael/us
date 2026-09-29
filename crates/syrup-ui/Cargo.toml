@@ -1,5 +1,6 @@
 [package]
 name = "syrup-ui"
+description = "Syrup's overlay (a portable painter, and on Windows a see-through, click-through window) and voice"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,14 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+syrup-paint.workspace = true
+syrup-avatar.workspace = true
+image.workspace = true
+serde.workspace = true
+
+# The overlay window and the voice (SAPI). Nothing that sends input to the game.
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
 
 [lints]
 workspace = true

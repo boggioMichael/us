@@ -250,6 +250,21 @@ pub fn session_id(now_unix: u64) -> String {
     format!("{}-{}", iso[0..10].replace('-', ""), iso[11..19].replace(':', ""))
 }
 
+impl MemoryStore {
+    /// A session id no earlier session in this store has used (two sessions
+    /// can start in the same second: `20260929-013000-2`).
+    pub fn new_session_id(&self, now_unix: u64) -> String {
+        let base = session_id(now_unix);
+        let mut id = base.clone();
+        let mut n = 2;
+        while self.dir.session(&id).exists() {
+            id = format!("{base}-{n}");
+            n += 1;
+        }
+        id
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use syrup_core::Event;

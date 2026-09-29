@@ -35,9 +35,10 @@ impl GameIdentity {
         !self.game_id.starts_with("unknown")
     }
 
-    /// Named confidently enough to say so out loud.
+    /// Sure enough to say which game it is out loud: a catalogued game, one
+    /// Syrup learned in an earlier session, or one the player named.
     pub fn is_confident(&self) -> bool {
-        self.confirmed || (self.is_known() && self.confidence.at_least(0.75))
+        self.confirmed || self.confidence.at_least(0.75)
     }
 }
 

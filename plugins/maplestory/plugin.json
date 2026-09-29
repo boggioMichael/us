@@ -1,0 +1,49 @@
+{
+  "id": "maplestory",
+  "name": "MapleStory",
+  "about": "Carried over from Maplesyrup: what it knew about MapleStory's interface, dialogs, runes, portals and early monsters. Every fact is an original short summary written for Maplesyrup, not text copied from a wiki.",
+  "games": ["maplestory"],
+  "hat": "syrup_cap",
+  "genres": ["mmorpg", "side_scroller", "fantasy"],
+  "sources": [
+    { "kind": "wiki", "provider": "mediawiki", "locator": "https://maplestory.fandom.com/api.php" },
+    { "kind": "encyclopedia", "provider": "wikipedia", "locator": "MapleStory" },
+    { "kind": "game_database", "provider": "steam", "locator": "216150" }
+  ],
+  "elements": [
+    { "concept": "health", "kind": "bar", "norm": [0.36, 0.82, 0.2, 0.03], "hue": [330, 30], "confidence": 0.5 },
+    { "concept": "mana", "kind": "bar", "norm": [0.36, 0.86, 0.2, 0.03], "hue": [185, 250], "confidence": 0.5 },
+    { "concept": "experience", "kind": "bar", "norm": [0.0, 0.89, 1.0, 0.02], "hue": [40, 90], "confidence": 0.5 },
+    { "concept": "boss_health", "kind": "bar", "norm": [0.2, 0.0, 0.62, 0.04], "hue": [70, 160], "confidence": 0.4 }
+  ],
+  "scene_words": {
+    "defeat": ["you have died", "return to town", "use a return scroll", "safety charm"],
+    "dialogue": ["accept", "decline", "end chat", "next"],
+    "loading": ["connecting to the server"]
+  },
+  "entities": [
+    { "name": "Rune", "kind": "mechanic", "summary": "A glowing pillar on a platform; activating it gives a temporary buff." },
+    { "name": "Portal", "kind": "mechanic", "summary": "A shimmering oval that moves the character to another map." },
+    { "name": "Snail", "kind": "enemy", "summary": "Passive, slow; a first-map training target." },
+    { "name": "Blue Snail", "kind": "enemy", "summary": "Passive, slow; a little more HP than a Snail." },
+    { "name": "Slime", "kind": "enemy", "summary": "Passive; hops slowly along a platform, often in clusters." },
+    { "name": "Stump", "kind": "enemy", "summary": "Stays put until provoked; farmed in tight clusters." },
+    { "name": "Wild Boar", "kind": "enemy", "summary": "Charges fast once provoked; can knock you back." },
+    { "name": "Ribbon Pig", "kind": "enemy", "summary": "Charges fast once provoked, like a Wild Boar." }
+  ],
+  "facts": [
+    { "subject": "Rune", "claim": "Runes appear as a glowing pillar at a fixed platform location and expire after a time limit.", "kind": "community_consensus" },
+    { "subject": "Rune", "claim": "Activating a rune requires standing next to it and pressing an on-screen directional key sequence.", "kind": "fact" },
+    { "subject": "Rune", "claim": "Successful rune activation grants a temporary buff, commonly move speed, jump or an EXP bonus.", "kind": "community_consensus" },
+    { "subject": "Portal", "claim": "Hidden portals look like background art until the character walks into their trigger area.", "kind": "community_consensus", "spoiler": "mild" },
+    { "subject": "Portal", "claim": "Boss-room portals usually ask for an entry confirmation before teleporting.", "kind": "fact" },
+    { "subject": "Training", "claim": "Prefer platforms with the most monsters per screen width: area skills clear more per cast.", "kind": "community_consensus" },
+    { "subject": "Boss", "claim": "Re-buff before entering a boss room, not mid-fight: boss attacks punish idle animations.", "kind": "community_consensus" },
+    { "subject": "Training", "claim": "Avoid standing at map edges when monsters are dense: there are fewer ways out.", "kind": "community_consensus" },
+    { "subject": "Training", "claim": "Judge a training map by the EXP-per-minute trend, not a single reading.", "kind": "community_consensus" }
+  ],
+  "tips": [
+    { "when_text": ["press the arrow keys", "activate the rune"], "text": "Rune prompt. Arrows, in order.", "urgency": "important" },
+    { "when_text": ["rune"], "text": "Rune's up. Grab it for the buff.", "urgency": "opportunistic" }
+  ]
+}

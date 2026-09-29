@@ -175,7 +175,7 @@ impl CoachEngine {
         for a in ctx.announcements {
             match a {
                 Announcement::Game { identity, first_time } => {
-                    let (text, expr) = if !identity.is_known() {
+                    let (text, expr) = if !identity.is_known() && *first_time {
                         (
                             pick(
                                 id,
@@ -560,7 +560,12 @@ impl CoachEngine {
     /// One step: rules and plugin candidates, judged; returns what to say now.
     pub fn step(&mut self, ctx: &CoachContext) -> CoachOutput {
         let (mut candidates, research) = self.candidates(ctx);
-        candidates.extend(ctx.extra.iter().cloned());
+        // Plugins number their advice themselves; feedback needs one numbering.
+        for mut a in ctx.extra.iter().cloned() {
+            a.id = self.next_id;
+            self.next_id += 1;
+            candidates.push(a);
+        }
         self.stats.candidates += candidates.len() as u64;
         let mut out = CoachOutput { candidates: candidates.clone(), research, ..Default::default() };
         // Earlier candidates still fresh get another chance.

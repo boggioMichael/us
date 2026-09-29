@@ -1,5 +1,6 @@
 [package]
 name = "syrup-runtime"
+description = "Syrup Universal wired together: the event-driven pipeline, memory, research, coaching, the overlay loop and the devtools server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,25 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+syrup-capture.workspace = true
+syrup-paint.workspace = true
+syrup-perception.workspace = true
+syrup-state.workspace = true
+syrup-recognition.workspace = true
+syrup-knowledge.workspace = true
+syrup-memory.workspace = true
+syrup-player.workspace = true
+syrup-coach.workspace = true
+syrup-avatar.workspace = true
+syrup-ui.workspace = true
+syrup-plugins.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+syrup-testgames.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

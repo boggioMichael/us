@@ -795,4 +795,33 @@ mod tests {
         let text: String = lines.iter().map(|l| l.text.clone()).collect::<Vec<_>>().join(" ");
         assert!(text.contains("AMMO") && text.contains("24"), "{text:?}");
     }
+
+    /// What the OCR built into Windows makes of a HUD line, a small label and a whole frame.
+    #[cfg(windows)]
+    #[test]
+    fn windows_ocr_reads_hud_text() {
+        let Some(engine) = WindowsOcr::new() else {
+            eprintln!("no Windows OCR language: skipped");
+            return;
+        };
+        let read = |img: &RgbaImage, hint: TextHint| -> String {
+            match engine.read(img, hint) {
+                Ok(lines) => lines.iter().map(|l| l.text.clone()).collect::<Vec<_>>().join(" | "),
+                Err(e) => format!("error: {e}"),
+            }
+        };
+        let mut line = RgbaImage::from_pixel(200, 40, image::Rgba([20, 20, 30, 255]));
+        Painter::new(&mut line).text(10.0, 8.0, "AMMO 24", FontStyle::bold(20.0), rgb(230, 230, 160));
+        let mut label = RgbaImage::from_pixel(60, 30, image::Rgba([20, 20, 30, 255]));
+        Painter::new(&mut label).text(8.0, 5.0, "HP", FontStyle::bold(20.0), rgb(245, 240, 235));
+        let mut frame = RgbaImage::from_pixel(960, 540, image::Rgba([60, 90, 70, 255]));
+        let mut p = Painter::new(&mut frame);
+        p.text(20.0, 497.0, "HP", FontStyle::bold(20.0), rgb(245, 240, 235));
+        p.text(270.0, 498.0, "87/100", FontStyle::bold(18.0), rgb(245, 240, 235));
+        p.text(380.0, 200.0, "YOU DIED", FontStyle::bold(48.0), rgb(230, 60, 60));
+        let (a, b, c) = (read(&line, TextHint::Line), read(&label, TextHint::Line), read(&frame, TextHint::Sparse));
+        eprintln!("windows ocr: line {a:?}, label {b:?}, frame {c:?}");
+        assert!(a.contains("24"), "the HUD line: {a:?}");
+        assert!(c.to_uppercase().contains("DIED"), "the frame: {c:?}");
+    }
 }

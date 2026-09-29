@@ -302,6 +302,22 @@ pub struct StateEngine {
     pub min_confidence: f32,
 }
 
+/// Whether a known element and a seen one are in the same place. Bars are
+/// thin, so another resolution or a window border shifting them a little
+/// kills their overlap: the same span across on a nearby row is the same bar.
+fn same_place(known: &NormRect, seen: &NormRect, is_bar: bool) -> bool {
+    if known.iou(seen) > 0.4 {
+        return true;
+    }
+    if !is_bar {
+        return false;
+    }
+    let across = (known.x + known.w).min(seen.x + seen.w) - known.x.max(seen.x);
+    let shorter = known.w.min(seen.w).max(1e-6);
+    let widths = known.w / seen.w.max(1e-6);
+    across / shorter > 0.7 && (0.6..1.7).contains(&widths) && (known.center().1 - seen.center().1).abs() < 0.04
+}
+
 impl Default for StateEngine {
     fn default() -> Self {
         StateEngine::new()
@@ -378,7 +394,7 @@ impl StateEngine {
     fn hint_for(&self, norm: &NormRect, is_bar: bool) -> Option<(String, f32, bool)> {
         self.hints
             .iter()
-            .filter(|h| (h.kind == "bar") == is_bar && h.norm.iou(norm) > 0.4)
+            .filter(|h| (h.kind == "bar") == is_bar && same_place(&h.norm, norm, is_bar))
             .max_by(|a, b| a.corrected.cmp(&b.corrected).then(a.confidence.total_cmp(&b.confidence)))
             .map(|h| (h.concept.clone(), h.confidence, h.corrected))
     }

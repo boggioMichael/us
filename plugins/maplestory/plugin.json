@@ -11,11 +11,12 @@
     { "kind": "encyclopedia", "provider": "wikipedia", "locator": "MapleStory" },
     { "kind": "game_database", "provider": "steam", "locator": "216150" }
   ],
+  "elements_note": "Measured on a 2025 recording of the current interface (the status bar at the bottom centre); fractions of the game's picture.",
   "elements": [
-    { "concept": "health", "kind": "bar", "norm": [0.36, 0.82, 0.2, 0.03], "hue": [330, 30], "confidence": 0.5 },
-    { "concept": "mana", "kind": "bar", "norm": [0.36, 0.86, 0.2, 0.03], "hue": [185, 250], "confidence": 0.5 },
-    { "concept": "experience", "kind": "bar", "norm": [0.0, 0.89, 1.0, 0.02], "hue": [40, 90], "confidence": 0.5 },
-    { "concept": "boss_health", "kind": "bar", "norm": [0.2, 0.0, 0.62, 0.04], "hue": [70, 160], "confidence": 0.4 }
+    { "concept": "health", "kind": "bar", "norm": [0.385, 0.896, 0.158, 0.024], "hue": [330, 30], "confidence": 0.6 },
+    { "concept": "mana", "kind": "bar", "norm": [0.385, 0.923, 0.151, 0.024], "hue": [185, 250], "confidence": 0.6 },
+    { "concept": "experience", "kind": "bar", "norm": [0.0, 0.955, 1.0, 0.015], "hue": [40, 90], "confidence": 0.6 },
+    { "concept": "boss_health", "kind": "bar", "norm": [0.208, 0.012, 0.594, 0.015], "hue": [70, 160], "confidence": 0.5 }
   ],
   "scene_words": {
     "defeat": ["you have died", "return to town", "use a return scroll", "safety charm"],

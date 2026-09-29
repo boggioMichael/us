@@ -3,6 +3,7 @@ name = "syrup-avatar"
 description = "Syrup, the Maplesyrup dog: a face, a hat for the game being played, the S medallion, and an expression"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

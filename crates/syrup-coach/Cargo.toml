@@ -3,6 +3,7 @@ name = "syrup-coach"
 description = "The coach: universal advice rules, the interruption policy, the spoiler policy, learning from feedback, Syrup's voice"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

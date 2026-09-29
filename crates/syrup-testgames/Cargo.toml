@@ -3,6 +3,7 @@ name = "syrup-testgames"
 description = "Synthetic games with exact ground truth: a 3D dungeon, a 2D side-scroller and a card game"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

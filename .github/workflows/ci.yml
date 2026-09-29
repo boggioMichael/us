@@ -27,7 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@stable
+      # The toolchain the code is written against (newer Rust gets its own job below).
+      - uses: dtolnay/rust-toolchain@1.95.0
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
@@ -59,6 +60,24 @@ jobs:
             avatar
             *.log
 
+  clippy-latest:
+    name: Lints on the newest Rust (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Lints
+        run: set -o pipefail; cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log || { tools/ci-annotate.sh clippy.log "clippy (newest Rust)"; exit 1; }
+
   devtools:
     name: Devtools page compiles and is up to date
     runs-on: ubuntu-latest
@@ -81,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
       - uses: Swatinem/rust-cache@v2
       - name: Build
         shell: bash
@@ -150,7 +169,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p syrup-desktop
       - name: Look up a few games

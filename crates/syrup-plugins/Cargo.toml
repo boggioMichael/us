@@ -3,6 +3,7 @@ name = "syrup-plugins"
 description = "Optional game plugins: the plugin interface, a manager, data plugins from JSON, and MapleStory (carried over from Maplesyrup)"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

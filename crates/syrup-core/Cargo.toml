@@ -3,6 +3,7 @@ name = "syrup-core"
 description = "The shared vocabulary of Syrup Universal: geometry, confidence, the observation IR, game state, profiles, knowledge, advice and events"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

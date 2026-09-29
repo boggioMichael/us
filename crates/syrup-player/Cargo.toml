@@ -3,6 +3,7 @@ name = "syrup-player"
 description = "The player model: skills as estimates with confidence, habits, repeated mistakes, what advice helps"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

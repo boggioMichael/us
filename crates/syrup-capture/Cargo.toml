@@ -3,6 +3,7 @@ name = "syrup-capture"
 description = "Frame sources for Syrup Universal: a game window or the screen (Windows), a video, a folder of images, frames in memory"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

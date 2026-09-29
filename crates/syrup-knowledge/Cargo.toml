@@ -3,6 +3,7 @@ name = "syrup-knowledge"
 description = "Game knowledge with provenance: a knowledge graph, facts tied to sources and versions, and a research agent"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

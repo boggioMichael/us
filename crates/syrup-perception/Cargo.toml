@@ -3,6 +3,7 @@ name = "syrup-perception"
 description = "Universal perception for Syrup: frame sampling, stable-interface discovery, bars, text, scenes, motion"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

@@ -554,6 +554,14 @@ impl StateEngine {
                 };
                 let norm = item.rect.to_norm(fw, fh);
                 let hint = self.hint_for(&norm, false);
+                // The middle of the screen is where the game happens: numbers there
+                // (damage, prices, dialog text) are the world's, not the interface's,
+                // unless Syrup already knows an element is there.
+                let (cx, cy) = norm.center();
+                let in_play = (0.25..0.75).contains(&cx) && (0.2..0.8).contains(&cy);
+                if in_play && hint.is_none() && !(l.label.is_some() && item.region.is_some()) {
+                    continue;
+                }
                 let t =
                     self.tracks.entry(key.clone()).or_insert_with(|| Track::new(key.clone(), false, item.rect, norm));
                 t.rect = item.rect;

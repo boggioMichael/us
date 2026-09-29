@@ -3,6 +3,7 @@ name = "syrup-recognition"
 description = "Which game is this? A recogniser that combines window, executable, on-screen text and HUD signature evidence, and a catalog of known games"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

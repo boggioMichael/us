@@ -183,8 +183,8 @@ impl Painter<'_> {
                     }
                 }
                 xs.sort_by(|a, b| a.total_cmp(b));
-                for pair in xs.chunks_exact(2) {
-                    let (l, r) = (pair[0] - min_x as f32, pair[1] - min_x as f32);
+                for [a, b] in xs.as_chunks::<2>().0 {
+                    let (l, r) = (a - min_x as f32, b - min_x as f32);
                     let (li, ri) = (l.floor().max(0.0) as usize, (r.floor() as usize).min(width - 1));
                     for (i, v) in cov.iter_mut().enumerate().take(ri + 1).skip(li) {
                         let lo = (i as f32).max(l);

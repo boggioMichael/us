@@ -3,6 +3,7 @@ name = "syrup-memory"
 description = "What Syrup remembers: game profiles, session timelines, episodes, the player's data, and forgetting"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 

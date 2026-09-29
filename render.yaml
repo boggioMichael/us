@@ -1,0 +1,23 @@
+# Syrup's brain for the phone app, on Render: one link sets it up.
+#   https://render.com/deploy?repo=https://github.com/boggioMichael/us/tree/claude/mvp
+#
+# Always on (Starter; the free plan sleeps and is too slow for this), in
+# Frankfurt, with a small disk so what Syrup learns and which phone it
+# belongs to survive a restart. No token: the brain belongs to the first
+# phone that talks to it (docs/iphone.md).
+services:
+  - type: web
+    name: syrup-brain
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: claude/mvp
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: SYRUP_DATA_DIR
+        value: /data
+    disk:
+      name: syrup-data
+      mountPath: /data
+      sizeGB: 1

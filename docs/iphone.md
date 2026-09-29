@@ -38,35 +38,40 @@ Once, in this order. Everything a build can do by itself, it does: it
 registers the app's IDs with Apple, and makes you a TestFlight tester who
 gets every build.
 
-### 1. The brain, on a Windows PC
+### 1. The brain
 
-1. **Smart App Control** blocks programs it doesn't know, Syrup included.
-   Since the April 2026 update it can be turned off and on again without
-   reinstalling Windows: Windows Security → App & browser control → Smart
-   App Control settings.
-2. **[Tailscale](https://tailscale.com/download)** (free): install it and
-   sign in. It gives the PC an address the phone reaches from anywhere.
-3. **Syrup**: download `syrup-windows.zip` from the
-   [releases](https://github.com/boggioMichael/us/releases) (*Syrup for
-   Windows*), unzip it, and double-click **Install Syrup.cmd**. It:
-   - copies Syrup to `%LOCALAPPDATA%\Syrup` and starts it, without a window,
-     now and whenever you sign in to Windows (no administrator rights);
-   - asks Tailscale for the door to the phone (`tailscale funnel --bg 8080`;
-     the first time, open the link it shows and allow Funnel);
-   - shows the address (`https://….ts.net`), copies it, and opens the
-     GitHub page where it goes (step 3).
+**On Render** (about $7 a month; always on, nothing to run at home). Open
+[this link](https://render.com/deploy?repo=https://github.com/boggioMichael/us/tree/claude/mvp),
+sign in with GitHub, and press **Apply**; Render asks for a card for the
+Starter plan. `render.yaml` sets the rest: the brain in Frankfurt, with a
+1 GB disk for what it learns. The first build takes about ten minutes; each
+push to the branch rebuilds it. Its address, `https://syrup-brain….onrender.com`,
+is at the top of the service's page on Render: that's the
+`SYRUP_SERVER_URL` (step 3).
 
-   **Uninstall Syrup.cmd** stops it and takes it out of the Startup folder;
-   what Syrup learned stays in `%APPDATA%\SyrupUniversal`. **Start
-   Syrup.cmd** runs it in a window instead, to see what it's doing.
+**On a Windows PC instead** (free; the PC has to be on while you play, and
+Smart App Control has to be off, since it blocks programs it doesn't know):
 
-Without a token, the brain belongs to the first phone that talks to it and
-refuses every other one. For a new phone, run `syrup.exe serve --pair` once.
+1. Turn off Smart App Control (Windows Security → App & browser control →
+   Smart App Control settings; since the April 2026 update it can be turned
+   on again without reinstalling Windows).
+2. Install [Tailscale](https://tailscale.com/download) (free) and sign in.
+3. Download `syrup-windows.zip` from the
+   [releases](https://github.com/boggioMichael/us/releases), unzip it, and
+   double-click **Install Syrup.cmd**. It copies Syrup to
+   `%LOCALAPPDATA%\Syrup` and starts it without a window, now and at every
+   sign-in (no administrator rights); asks Tailscale for the door to the
+   phone (`tailscale funnel --bg 8080`; the first time, open the link it
+   shows); and shows the address, copied, with the GitHub page it goes on.
+   **Uninstall Syrup.cmd** undoes it; what Syrup learned stays in
+   `%APPDATA%\SyrupUniversal`.
 
-**Hosted instead** (always on, no PC): the `Dockerfile` at the top of the
-repository builds the brain with Tesseract for text. Set `SYRUP_TOKEN` to a
-long random word (the phone sends it with every request), and keep `/data`
-on a disk if what Syrup learns should survive a restart.
+**Anywhere else**: the `Dockerfile` at the top of the repository.
+
+Either way, without a token the brain belongs to the first phone that
+talks to it and refuses every other one (`syrup serve --pair` lets one more
+pair). With `SYRUP_TOKEN` set on the brain and in GitHub, every request
+needs it instead.
 
 ### 2. Apple
 
@@ -95,7 +100,7 @@ once for each:
 | `ASC_ISSUER_ID` | the Issuer ID |
 | `ASC_KEY_P8` | the whole `.p8` file, opened in Notepad |
 | `APPLE_TEAM_ID` | the Team ID |
-| `SYRUP_SERVER_URL` | the address Install Syrup showed (it's on the clipboard) |
+| `SYRUP_SERVER_URL` | the brain's address (on Render: at the top of the service's page) |
 | `SYRUP_TOKEN` | only for a hosted brain with a token |
 
 From then on, every push builds the app and uploads it to TestFlight

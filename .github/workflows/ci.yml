@@ -63,8 +63,20 @@ jobs:
         run: set -o pipefail; cargo build --release -p syrup-desktop 2>&1 | tee release.log || { tools/ci-annotate.sh release.log "release build"; exit 1; }
       - name: Draw Syrup
         run: ./target/release/syrup avatar --out avatar
+      - name: Install the phone app's brain, the way a player would (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          set -o pipefail
+          startup="$(cygpath "$APPDATA")/Microsoft/Windows/Start Menu/Programs/Startup/Syrup.vbs"
+          ./target/release/syrup.exe install 2>&1 | tee install.log
+          curl -sf http://127.0.0.1:8080/healthz && echo
+          test -f "$startup" || { echo "::error title=install::no launcher in the Startup folder"; exit 1; }
+          ./target/release/syrup.exe uninstall
+          if test -f "$startup"; then echo "::error title=uninstall::the launcher is still in the Startup folder"; exit 1; fi
+          if curl -sf http://127.0.0.1:8080/healthz; then echo "::error title=uninstall::Syrup is still running"; exit 1; fi
+          echo "::notice title=install (Windows)::$(grep -a -m1 'running' install.log | sed 's/%/%25/g')"
       # For running Syrup's brain on a Windows PC (the phone app's server):
-      # syrup.exe and a double-click launcher, on one release page that
+      # syrup.exe and double-click installers, on one release page that
       # every push to this branch updates.
       - name: Publish the Windows build
         if: runner.os == 'Windows' && github.event_name == 'push'
@@ -73,11 +85,10 @@ jobs:
         run: |
           set -e
           mkdir -p publish
-          cp target/release/syrup.exe publish/
-          cp "tools/windows/Start Syrup.cmd" publish/
-          (cd publish && 7z a -tzip ../syrup-windows.zip syrup.exe "Start Syrup.cmd" > /dev/null)
+          cp target/release/syrup.exe tools/windows/*.cmd publish/
+          (cd publish && 7z a -tzip ../syrup-windows.zip syrup.exe *.cmd > /dev/null)
           tag="syrup-windows-${GITHUB_REF_NAME//\//-}"
-          notes="Syrup for Windows, built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Unzip, then double-click Start Syrup.cmd to run the phone app's brain (docs/iphone.md)."
+          notes="Syrup for Windows, built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Unzip, then double-click Install Syrup.cmd: the phone app's brain runs on this PC from then on (docs/iphone.md)."
           if gh release view "$tag" > /dev/null 2>&1; then
             gh release edit "$tag" --notes "$notes"
           else

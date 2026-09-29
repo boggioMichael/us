@@ -13,6 +13,8 @@ final class Mouth: NSObject, ObservableObject {
     @Published private(set) var status = "Starting…"
     @Published private(set) var lastLine: String?
     @Published private(set) var watching = false
+    /// Whether the brain answered last time (nil: not asked yet).
+    @Published private(set) var reachable: Bool?
 
     private let voice = AVSpeechSynthesizer()
     private var hum: AVAudioPlayer?
@@ -41,7 +43,7 @@ final class Mouth: NSObject, ObservableObject {
             return
         }
         stayAwake()
-        status = "Listening. Start the broadcast, then go play."
+        status = "Getting ready…"
         loop = Task { [weak self] in
             await self?.listen()
         }
@@ -83,12 +85,14 @@ final class Mouth: NSObject, ObservableObject {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard code == 200 else {
                     failures += 1
+                    reachable = false
                     status = "Syrup's brain says: \(Link.explain(code, data))."
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
                     continue
                 }
                 let answer = try JSONDecoder().decode(SayAnswer.self, from: data)
                 failures = 0
+                reachable = true
                 watching = answer.watching
                 if after != nil {
                     for line in answer.lines {
@@ -97,7 +101,7 @@ final class Mouth: NSObject, ObservableObject {
                     }
                 }
                 after = answer.last
-                status = watching ? "Watching your game." : "Listening. Start the broadcast, then go play."
+                status = watching ? "Watching your game." : "Ready. Tap the round button, then Start Broadcast."
                 // Nothing to watch for a while: stop, so the phone can rest.
                 if watching || UIScreen.main.isCaptured {
                     quietSince = nil
@@ -112,7 +116,8 @@ final class Mouth: NSObject, ObservableObject {
             } catch {
                 if Task.isCancelled { return }
                 failures += 1
-                status = "Can't reach Syrup's brain at \(Link.server?.host ?? "?"). Is it running?"
+                reachable = false
+                status = "Can't reach Syrup's brain at \(Link.server?.host ?? "?"). Is your computer on?"
                 let wait = UInt64(min(30, 2 * failures))
                 try? await Task.sleep(nanoseconds: wait * 1_000_000_000)
             }

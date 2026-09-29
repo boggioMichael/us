@@ -86,6 +86,17 @@ jobs:
           x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$x"
           xcodebuild -version
+      - name: The Apple key, for this run only
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+          python3 -m venv "$RUNNER_TEMP/asc" && "$RUNNER_TEMP/asc/bin/pip" install -q pyjwt cryptography
+      # What a person would otherwise click through: the app's IDs are
+      # registered, and the app must exist in App Store Connect.
+      - name: The app's IDs, and the app in App Store Connect
+        if: steps.ready.outputs.go == 'true'
+        run: '"$RUNNER_TEMP/asc/bin/python" apps/ios/tools/asc.py prepare com.boggiomichael.syrup'
       - name: Generate the project
         if: steps.ready.outputs.go == 'true'
         working-directory: apps/ios
@@ -107,8 +118,7 @@ jobs:
       - name: Sign and upload to TestFlight
         if: steps.ready.outputs.go == 'true'
         run: |
-          key="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
-          printf '%s\n' "$ASC_KEY_P8" > "$key"
+          key="$ASC_KEY_PATH"
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -130,7 +140,6 @@ jobs:
             -authenticationKeyPath "$key" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             > export.log 2>&1
           code=$?
-          rm -f "$key"
           grep -vE "^\s*$" export.log | tail -40
           if [ $code -ne 0 ]; then
             if grep -qiE "no suitable application records|app record|could not find.*app" export.log; then
@@ -143,3 +152,10 @@ jobs:
             exit 1
           fi
           echo "::notice title=TestFlight::Build $BUILD_NUMBER uploaded. Apple processes it for a few minutes; then it's in TestFlight."
+      - name: You, as a tester (every build reaches your TestFlight)
+        if: steps.ready.outputs.go == 'true'
+        continue-on-error: true
+        run: '"$RUNNER_TEMP/asc/bin/python" apps/ios/tools/asc.py testers com.boggiomichael.syrup'
+      - name: Forget the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

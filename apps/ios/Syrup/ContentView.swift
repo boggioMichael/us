@@ -10,6 +10,15 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var phase
     @AppStorage("game") private var game = ""
 
+    /// Green when watching, honey when ready, red when the brain can't be reached.
+    private var light: Color {
+        switch mouth.reachable {
+        case .some(false): return Color(red: 0.98, green: 0.8, blue: 0.78)
+        case .some(true): return mouth.watching ? Color(red: 0.8, green: 0.93, blue: 0.78) : honey.opacity(0.35)
+        case .none: return Color.white
+        }
+    }
+
     var body: some View {
         ZStack {
             cream.ignoresSafeArea()
@@ -34,15 +43,19 @@ struct ContentView: View {
                         .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(brown.opacity(0.25)))
                         .onSubmit { mouth.tell(game: game) }
+                    Text(mouth.status)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(brown)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(light))
                     BroadcastButton()
-                        .frame(width: 84, height: 84)
+                        .frame(width: 96, height: 96)
                         .background(Circle().fill(honey))
                         .overlay(Circle().stroke(brown, lineWidth: 3))
                         .accessibilityLabel("Start watching")
-                    Text("Tap the button, choose Start Broadcast, then go play. Syrup talks to you while you play.")
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(brown)
-                    Text(mouth.status)
+                    Text("Tap it, choose Start Broadcast, and go play. Syrup talks to you while you play. To stop, tap the red mark at the top of the screen.")
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundColor(brown.opacity(0.8))

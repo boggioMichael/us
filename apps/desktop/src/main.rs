@@ -10,10 +10,13 @@
 //! syrup avatar [--out DIR]                             Syrup's hats, faces and overlay, as pictures
 //! syrup windows                                        the windows Syrup could watch (Windows)
 //! syrup serve [--port P]                               be the brain for the phone app (docs/iphone.md)
+//! syrup install | uninstall                            that brain on this Windows PC, starting with Windows
 //! ```
 //!
 //! Syrup only ever reads pixels. It never sends input to a game, never reads
 //! or writes a game's memory, and never touches its files or its network.
+
+mod install;
 
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
@@ -277,6 +280,10 @@ fn cli() -> Command {
         .subcommand(
             Command::new("windows").about("List the windows Syrup could watch, and which one it would pick (Windows)"),
         )
+        .subcommand(Command::new("install").about(
+            "Windows: run the phone app's brain on this PC from now on (starts with Windows; Tailscale Funnel gives it an address)",
+        ))
+        .subcommand(Command::new("uninstall").about("Windows: stop the phone app's brain, and don't start it with Windows"))
         .subcommand(
             data_arg(Command::new("serve").about(
                 "Be the brain for the phone app: its screen comes in, what to say goes out (token: $SYRUP_TOKEN)",
@@ -367,6 +374,8 @@ fn run() -> ExitCode {
         Some(("avatar", m)) => avatar(m),
         Some(("windows", _)) => windows(),
         Some(("serve", m)) => serve(m),
+        Some(("install", _)) => install::install(),
+        Some(("uninstall", _)) => install::uninstall(),
         _ => Err("unknown command".into()),
     };
     match result {

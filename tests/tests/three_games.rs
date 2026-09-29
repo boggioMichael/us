@@ -17,6 +17,16 @@ fn fixtures() -> PathBuf {
 
 #[test]
 fn syrup_learns_three_different_games_and_remembers_them() {
+    // As in the program: room on the stack (Windows' default thread stack is small).
+    std::thread::Builder::new()
+        .stack_size(64 << 20)
+        .spawn(three_games)
+        .expect("a thread")
+        .join()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e));
+}
+
+fn three_games() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path();
     let with_ocr = has_ocr();

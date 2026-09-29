@@ -202,19 +202,23 @@ pub fn hat_gallery(height: u32) -> RgbaImage {
     let hats = Hat::ALL;
     let one = render(&Pose::new(Hat::SyrupCap, Expression::Neutral), height);
     let (w, h) = one.dimensions();
+    // Each cell is wide enough for its name ("astronaut helmet").
+    let label = syrup_paint::FontStyle::bold(13.0);
+    let widest = hats.iter().map(|h| syrup_paint::measure(&h.name().replace('_', " "), label)).fold(0.0f32, f32::max);
+    let cw = w.max(widest.ceil() as u32 + 12);
     let cols = 7u32;
     let rows = (hats.len() as u32).div_ceil(cols);
-    let mut sheet = RgbaImage::from_pixel(w * cols, (h + 24) * rows, image::Rgba([255, 244, 221, 255]));
+    let mut sheet = RgbaImage::from_pixel(cw * cols, (h + 24) * rows, image::Rgba([255, 244, 221, 255]));
     for (i, hat) in hats.iter().enumerate() {
         let img = render(&Pose::new(*hat, Expression::Neutral), height);
-        let (x, y) = ((i as u32 % cols) * w, (i as u32 / cols) * (h + 24));
+        let (x, y) = ((i as u32 % cols) * cw, (i as u32 / cols) * (h + 24));
         let mut p = Painter::new(&mut sheet);
-        p.image(&img, x as i32, y as i32, w, h, 1.0);
+        p.image(&img, (x + (cw - w) / 2) as i32, y as i32, w, h, 1.0);
         p.text_centered(
-            x as f32 + w as f32 / 2.0,
+            x as f32 + cw as f32 / 2.0,
             (y + h + 2) as f32,
             &hat.name().replace('_', " "),
-            syrup_paint::FontStyle::bold(14.0),
+            label,
             syrup_paint::rgb(0x57, 0x35, 0x1F),
         );
     }

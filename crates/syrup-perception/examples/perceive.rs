@@ -19,6 +19,9 @@ fn main() {
         Some(kind) => {
             Box::new(Session::of(kind, args.get(4).and_then(|s| s.parse().ok()).unwrap_or(11), 10.0, Some(seconds)))
         }
+        None if std::path::Path::new(&what).is_dir() => {
+            Box::new(syrup_capture::FolderSource::open(std::path::Path::new(&what), 4.0).unwrap())
+        }
         None => {
             let src = syrup_capture::VideoSource::open_at(
                 std::path::Path::new(&what),

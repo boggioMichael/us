@@ -291,12 +291,17 @@ impl Grabber {
         if client.w == 0 || client.h == 0 || !self.ensure(client.w as i32, client.h as i32) {
             return None;
         }
+        // In front: copy it off the screen (fast), else ask it to draw itself;
+        // behind other windows, the other way round. A blank result falls back.
         let in_front = unsafe { GetForegroundWindow() } == window;
-        let ok = if in_front {
-            (self.copy_from_screen(client.x, client.y) && !self.is_blank()) || (self.print(window) && !self.is_blank())
-        } else {
-            (self.print(window) && !self.is_blank()) || (self.copy_from_screen(client.x, client.y) && !self.is_blank())
-        };
+        let mut ok = false;
+        for from_screen in [in_front, !in_front] {
+            let got = if from_screen { self.copy_from_screen(client.x, client.y) } else { self.print(window) };
+            if got && !self.is_blank() {
+                ok = true;
+                break;
+            }
+        }
         if !ok {
             return None;
         }

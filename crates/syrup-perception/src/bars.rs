@@ -312,6 +312,32 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
     if x < 0 || x >= fw {
         return (0, [0; 3]);
     }
+    // A full bar ends at its frame: a column of the border's colour (the border
+    // above the fill's end), all the way down, going on above and below.
+    {
+        let fh = img.height() as i32;
+        let pixel = |x: i32, y: i32| {
+            let p = img.get_pixel(x as u32, y.clamp(0, fh - 1) as u32).0;
+            [p[0], p[1], p[2]]
+        };
+        let end = if dir > 0 { fill.right() - 1 } else { fill.x };
+        let c = column(img, x, y0, y1);
+        // (A frame is thin: something else follows within a few columns; a
+        // track of the same dark colour goes on.)
+        let thin = (1..=4).any(|k| {
+            let xx = x + k * dir;
+            xx >= 0 && xx < fw && color_distance(column(img, xx, y0, y1), c) > 30.0
+        });
+        if thin
+            && color_distance(c, color) > 60.0
+            && color_distance(c, pixel(end, fill.y - 1)) < 30.0
+            && color_distance(c, pixel(x, fill.y - 1)) < 30.0
+            && color_distance(c, pixel(x, fill.bottom())) < 30.0
+            && (fill.y..fill.bottom()).all(|y| color_distance(pixel(x, y), c) < 30.0)
+        {
+            return (0, [0; 3]);
+        }
+    }
     let Some(track) = typical(img, x, dir, 16, y0, y1) else {
         return (0, [0; 3]);
     };
@@ -320,6 +346,12 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
     if !(track_l <= fill_l + 10 || chroma(track[0], track[1], track[2]) + 30 < chroma(color[0], color[1], color[2]))
         || color_distance(track, color) < 45.0
     {
+        return (0, [0; 3]);
+    }
+    // A strongly coloured "track" is scenery next to the bar (lava beside a
+    // full health bar), unless it is the fill's own colour, dimmed.
+    let same_family = hue_distance(hue(track[0], track[1], track[2]), hue(color[0], color[1], color[2])) <= 12.0;
+    if chroma(track[0], track[1], track[2]) >= 70 && !(same_family && track_l * 10 <= fill_l * 7) {
         return (0, [0; 3]);
     }
     // A track is a band like the fill: what is just above and below it is something else.
@@ -332,17 +364,62 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
     };
     let banded = |x: i32| (1..=4).any(|d| differs(x, fill.y - d)) && (0..4).any(|d| differs(x, fill.bottom() + d));
     let max_len = (fill.w as i32 * 40).min(fw);
-    let mut len = 0;
-    let mut odd = 0;
-    let mut steps = 0;
+    let (mut len, mut odd, mut texty, mut steps) = (0, 0, 0, 0);
+    let pixel = |x: i32, y: i32| {
+        let p = img.get_pixel(x as u32, y.clamp(0, fh - 1) as u32).0;
+        [p[0], p[1], p[2]]
+    };
+    // The border running along the top of the bar: above the fill's end to
+    // start with, then above wherever the track was last seen.
+    let end = if dir > 0 { fill.right() - 1 } else { fill.x };
+    let mut border: Option<[u8; 3]> = Some(pixel(end, fill.y - 1));
+    // Whether the column before was track: a track goes on through stretches
+    // where the interface around it is as dark as it is (rightwards only).
+    let mut on_track = false;
     while x >= 0 && x < fw && steps < max_len {
-        if color_distance(column(img, x, y0, y1), track) <= 40.0 && banded(x) {
+        let c = column(img, x, y0, y1);
+        let track_colored = color_distance(c, track) <= 40.0;
+        let is_banded = track_colored && banded(x);
+        if is_banded || (track_colored && on_track && dir > 0) {
             len = steps + 1;
             odd = 0;
+            texty = 0;
+            on_track = true;
+            if is_banded {
+                border = Some(pixel(x, fill.y - 1));
+            }
         } else {
+            on_track = false;
+            // The bar's frame: the colour of the border along the top of the bar,
+            // going on above and below it (the border turning the corner). The
+            // track ends there; text printed on a track is not that colour.
+            // (One colour all the way down: a column of text strokes over the
+            // track is light and dark in turn.)
+            if !track_colored
+                && color_distance(c, color) > 60.0
+                && border.is_some_and(|b| color_distance(c, b) < 30.0)
+                && color_distance(c, pixel(x, fill.y - 1)) < 30.0
+                && color_distance(c, pixel(x, fill.bottom())) < 30.0
+                && (fill.y..fill.bottom()).all(|y| color_distance(pixel(x, y), c) < 30.0)
+            {
+                break;
+            }
             odd += 1;
-            // A few odd columns (text printed on the track) are bridged; more end it.
-            if odd > (fill.h as i32 / 2).max(4) {
+            // Light, grey columns are text printed on the track ("22,496,313 (26.9%)");
+            // track-coloured ones whose band cannot be seen are where the interface
+            // around the bar happens to be as dark as the track. Runs of either,
+            // as long as the fill or the track so far, are bridged.
+            let text_like = luma(c[0], c[1], c[2]) as i32 > track_l + 50 && chroma(c[0], c[1], c[2]) < 70;
+            // (Only rightwards, the way nearly every bar drains: leftwards the dark
+            // interface beside a bar, and its light icons, would pass for more track.)
+            texty += (text_like || track_colored) as i32;
+            let allowed = if dir > 0 && texty * 2 >= odd {
+                (fill.h as i32 / 2).max(4).max(len.min(400))
+            } else {
+                (fill.h as i32 / 2).max(4)
+            };
+            // A few odd columns are bridged; more end it.
+            if odd > allowed {
                 break;
             }
         }
@@ -354,7 +431,12 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
 
 fn measure_track(img: &RgbaImage, fill: Rect, color: [u8; 3], hue: f32) -> BarCandidate {
     let (right, rc) = track_length(img, fill, color, 1);
-    let (left, lc) = track_length(img, fill, color, -1);
+    let (mut left, lc) = track_length(img, fill, color, -1);
+    // Bars fill from the left almost always: a short "track" on the left only
+    // is the gap before a full bar, not the empty part of one draining left.
+    if right == 0 && (left as f32) < fill.w as f32 * 0.25 {
+        left = 0;
+    }
     let (container, drains_right, track, tc) = if right >= left {
         (Rect::new(fill.x, fill.y, fill.w + right as u32, fill.h), false, right, rc)
     } else {

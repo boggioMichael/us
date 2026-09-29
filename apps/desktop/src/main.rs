@@ -278,6 +278,15 @@ fn cli() -> Command {
 }
 
 fn main() -> ExitCode {
+    // Windows gives the main thread 1 MB of stack, which perception, OCR and
+    // the overlay together can outgrow: everything runs on a thread with room.
+    match std::thread::Builder::new().name("syrup".into()).stack_size(64 << 20).spawn(run) {
+        Ok(worker) => worker.join().unwrap_or(ExitCode::FAILURE),
+        Err(_) => run(),
+    }
+}
+
+fn run() -> ExitCode {
     let m = cli().get_matches();
     let result = match m.subcommand() {
         Some(("live", m)) => live(m),

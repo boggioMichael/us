@@ -47,9 +47,12 @@ fn bar_score(frames: &[(Truth, Observation)], name: &str, after_ms: u64) -> (usi
     for (t, o) in frames.iter().filter(|(t, _)| t.t_ms >= after_ms && t.scene == SceneKind::Gameplay) {
         let Some(e) = t.element(name) else { continue };
         total += 1;
-        if let Some((_, fill)) = bar_near(o, e.rect) {
+        if let Some((r, fill)) = bar_near(o, e.rect) {
             found += 1;
             err += (fill - e.fraction().unwrap() as f32).abs();
+            if std::env::var("SYRUP_DEBUG_BARS").is_ok() && (fill - e.fraction().unwrap() as f32).abs() > 0.04 {
+                eprintln!("{} ms {name}: truth {:.2} seen {fill:.2} at {:?}", t.t_ms, e.fraction().unwrap(), r.rect);
+            }
         }
     }
     (found, total, if found > 0 { err / found as f32 } else { 1.0 })

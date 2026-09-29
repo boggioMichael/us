@@ -139,6 +139,10 @@ impl GamePlugin for MapleStory {
         self.data.genres()
     }
 
+    fn absent_concepts(&self) -> Vec<String> {
+        self.data.absent_concepts()
+    }
+
     fn advice(&mut self, ctx: &PluginContext) -> Vec<Advice> {
         let mut out = self.data.advice(ctx);
         let make = |id: &mut u64, topic: &str, text: String, why: String, urgency: Urgency| {
@@ -208,6 +212,7 @@ mod tests {
         assert!(p.known_entities().iter().any(|e| e.name == "Wild Boar"));
         assert!(p.scene_words().iter().any(|(k, w)| *k == SceneKind::Defeat && w == "return to town"));
         assert!(p.knowledge_sources().iter().any(|s| s.locator.contains("maplestory.fandom.com")));
+        assert!(p.absent_concepts().contains(&"stamina".to_string()));
     }
 
     #[test]

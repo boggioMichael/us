@@ -5,6 +5,7 @@
   "games": ["maplestory"],
   "hat": "syrup_cap",
   "genres": ["mmorpg", "side_scroller", "fantasy"],
+  "absent": ["stamina", "energy", "shield", "ammo", "timer", "score", "round"],
   "sources": [
     { "kind": "wiki", "provider": "mediawiki", "locator": "https://maplestory.fandom.com/api.php" },
     { "kind": "encyclopedia", "provider": "wikipedia", "locator": "MapleStory" },

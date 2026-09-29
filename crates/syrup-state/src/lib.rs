@@ -296,6 +296,8 @@ pub struct StateEngine {
     last_known: BTreeMap<String, ConceptValue>,
     /// Concepts already announced as learned, and where.
     announced: Vec<(String, NormRect)>,
+    /// Concepts this game is known not to have (a plugin says so).
+    absent: Vec<String>,
     /// Minimum confidence for a concept to be reported.
     pub min_confidence: f32,
 }
@@ -325,11 +327,17 @@ impl StateEngine {
             level_up_ms: None,
             last_known: BTreeMap::new(),
             announced: Vec::new(),
+            absent: Vec::new(),
             min_confidence: 0.35,
         }
     }
 
     /// What the profile or a plugin knows (replaces earlier hints).
+    /// Concepts the game does not have: never assigned (from a plugin).
+    pub fn set_absent(&mut self, concepts: Vec<String>) {
+        self.absent = concepts;
+    }
+
     pub fn set_hints(&mut self, hints: Vec<ElementHint>) {
         self.hints = hints;
         for t in self.tracks.values_mut() {
@@ -361,8 +369,10 @@ impl StateEngine {
 
     pub fn reset(&mut self) {
         let hints = std::mem::take(&mut self.hints);
+        let absent = std::mem::take(&mut self.absent);
         *self = StateEngine::new();
         self.hints = hints;
+        self.absent = absent;
     }
 
     fn hint_for(&self, norm: &NormRect, is_bar: bool) -> Option<(String, f32, bool)> {
@@ -845,6 +855,10 @@ impl StateEngine {
         let mut options: Vec<(f32, String, &'static str, Vec<String>)> = Vec::new();
         for t in &live {
             for (c, score, why) in t.scores(frame) {
+                // A plugin can say the game has no such thing.
+                if self.absent.iter().any(|a| a == c) {
+                    continue;
+                }
                 let mut conf = confidence(score);
                 // Keep what was assigned unless something clearly better comes.
                 if self.assigned.get(c).is_some_and(|k| *k == t.key) {

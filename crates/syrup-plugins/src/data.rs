@@ -98,6 +98,9 @@ pub struct PluginSpec {
     pub facts: Vec<FactSpec>,
     #[serde(default)]
     pub tips: Vec<TipSpec>,
+    /// Concepts the game does not have.
+    #[serde(default)]
+    pub absent: Vec<String>,
 }
 
 pub struct DataPlugin {
@@ -223,6 +226,10 @@ impl GamePlugin for DataPlugin {
 
     fn genres(&self) -> Vec<String> {
         self.spec.genres.clone()
+    }
+
+    fn absent_concepts(&self) -> Vec<String> {
+        self.spec.absent.clone()
     }
 
     fn advice(&mut self, ctx: &PluginContext) -> Vec<Advice> {

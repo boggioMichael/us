@@ -744,6 +744,7 @@ impl Runtime {
             self.memory.load::<KnowledgeGraph>(&id, "knowledge.json").unwrap_or_else(|| KnowledgeGraph::new(&id));
         let mut hints = syrup_memory::learner::hints(&profile);
         let mut scene_words = Vec::new();
+        let mut absent = Vec::new();
         if let Some(p) = self.plugins.active() {
             if let Some(theme) = p.visual_theme() {
                 profile.visual_identity = theme;
@@ -766,6 +767,7 @@ impl Runtime {
             }
             hints.extend(p.known_regions());
             scene_words = p.scene_words();
+            absent = p.absent_concepts();
         } else if profile.visual_identity.hat == Hat::SyrupCap && !profile.genres.is_empty() {
             profile.visual_identity.hat = Hat::for_genres(&profile.genres);
         }
@@ -774,6 +776,7 @@ impl Runtime {
         }
         self.state.reset();
         self.state.set_hints(hints);
+        self.state.set_absent(absent);
         self.analyzer.cfg.scene_words = scene_words;
         self.learner.start_session(&mut profile);
         let first_time = profile.stats.sessions <= 1;

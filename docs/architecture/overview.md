@@ -281,6 +281,7 @@ trait GamePlugin: Send {
     fn visual_theme(&self) -> Option<VisualIdentity>;
     fn scene_words(&self) -> Vec<(SceneKind, String)>;
     fn genres(&self) -> Vec<String>;
+    fn absent_concepts(&self) -> Vec<String>;
     fn advice(&mut self, ctx: &PluginContext) -> Vec<Advice>;
 }
 ```

@@ -182,7 +182,13 @@ impl Grabber {
                 let _ = DeleteDC(self.mem);
             }
         }
-        *self = Grabber::new();
+        // Field by field: assigning a whole new Grabber would drop this one,
+        // and dropping calls release() again, for ever.
+        self.mem = HDC(null_mut());
+        self.bitmap = HBITMAP(null_mut());
+        self.old = HGDIOBJ(null_mut());
+        self.bits = null_mut();
+        self.size = (0, 0);
     }
 
     fn ensure(&mut self, w: i32, h: i32) -> bool {

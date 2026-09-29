@@ -44,7 +44,8 @@ optional.
   ],
   "tips": [
     { "when_text": ["mossy king"], "text": "Boss. Watch the arms.", "urgency": "important" }
-  ]
+  ],
+  "absent": ["ammo", "stamina"]
 }
 ```
 
@@ -59,6 +60,7 @@ optional.
 | `entities` | knowledge graph nodes: kinds as in [memory.md](../protocols/memory.md#knowledgejson-what-is-known) |
 | `facts` | seed facts, attributed to the plugin; `kind` defaults to `fact`, `spoiler` to `none` |
 | `tips` | said when any of `when_text` is on screen (whole words), at most once a minute each, through the same interruption policy as everything else |
+| `absent` | concepts the game does not have: never assigned, whatever OCR noise or a look-alike bar suggests (MapleStory has no stamina, energy, ammo, score or rounds) |
 
 Facts are the plugin author's own short summaries, with the plugin as their
 source, never text copied from elsewhere.
@@ -96,6 +98,7 @@ default that does nothing:
 | `visual_theme()` | the hat (and an accent colour) |
 | `scene_words()` | words for screens |
 | `genres()` | genres for the profile |
+| `absent_concepts()` | concepts the game does not have |
 | `advice(ctx)` | lines to propose; they go through the same interruption and spoiler policies, and the player's feedback applies to them like to any other |
 
 A plugin sees what everything else sees (the observation, the state, the

@@ -278,9 +278,9 @@ fn cli() -> Command {
 }
 
 fn main() -> ExitCode {
-    // Windows gives the main thread 1 MB of stack, which perception, OCR and
-    // the overlay together can outgrow: everything runs on a thread with room.
-    match std::thread::Builder::new().name("syrup".into()).stack_size(64 << 20).spawn(run) {
+    // Windows gives the main thread 1 MB of stack; the pipeline runs on a
+    // thread with room to spare (the same on every system).
+    match std::thread::Builder::new().name("syrup".into()).stack_size(16 << 20).spawn(run) {
         Ok(worker) => worker.join().unwrap_or(ExitCode::FAILURE),
         Err(_) => run(),
     }

@@ -76,6 +76,12 @@ pub trait GamePlugin: Send {
         Vec::new()
     }
 
+    /// Concepts the game does not have ("stamina" in a game without it): what
+    /// OCR noise or a look-alike bar suggests is then never believed.
+    fn absent_concepts(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     fn advice(&mut self, _ctx: &PluginContext) -> Vec<Advice> {
         Vec::new()
     }

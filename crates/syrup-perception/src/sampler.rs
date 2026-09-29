@@ -20,11 +20,7 @@ pub struct SamplerConfig {
 
 impl Default for SamplerConfig {
     fn default() -> Self {
-        SamplerConfig {
-            min_interval_ms: 100,
-            max_interval_ms: 500,
-            budget_ms: 60.0,
-        }
+        SamplerConfig { min_interval_ms: 100, max_interval_ms: 500, budget_ms: 60.0 }
     }
 }
 
@@ -50,27 +46,15 @@ pub struct FrameSampler {
 
 impl FrameSampler {
     pub fn new(cfg: SamplerConfig) -> Self {
-        FrameSampler {
-            cfg,
-            ..Default::default()
-        }
+        FrameSampler { cfg, ..Default::default() }
     }
 
     pub fn decide(&mut self, frame: &Frame) -> SampleDecision {
         let thumb = thumbnail(&frame.image, 64, 36);
-        let step = if self.prev.is_empty() {
-            0.0
-        } else {
-            thumb_difference(&thumb, &self.prev)
-        };
+        let step = if self.prev.is_empty() { 0.0 } else { thumb_difference(&thumb, &self.prev) };
         self.busy = self.busy * 0.7 + (step * 25.0).min(1.0) * 0.3;
-        let change = if self.analysed.is_empty() {
-            1.0
-        } else {
-            thumb_difference(&thumb, &self.analysed)
-        };
-        let span = (self.cfg.max_interval_ms
-            - self.cfg.min_interval_ms.min(self.cfg.max_interval_ms)) as f32;
+        let change = if self.analysed.is_empty() { 1.0 } else { thumb_difference(&thumb, &self.analysed) };
+        let span = (self.cfg.max_interval_ms - self.cfg.min_interval_ms.min(self.cfg.max_interval_ms)) as f32;
         let mut interval = self.cfg.max_interval_ms as f32 - span * self.busy;
         if self.last_cost_ms > self.cfg.budget_ms {
             interval = interval.max(self.last_cost_ms * 3.0);
@@ -87,12 +71,7 @@ impl FrameSampler {
             self.analysed = self.prev.clone();
             self.last_ms = Some(now);
         }
-        SampleDecision {
-            analyse,
-            change,
-            busy: self.busy,
-            interval_ms: interval,
-        }
+        SampleDecision { analyse, change, busy: self.busy, interval_ms: interval }
     }
 
     /// How long the analysis of the last sampled frame took.

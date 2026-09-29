@@ -1,0 +1,11 @@
+{
+ "type": "standard",
+ "title": "Sky Meadow Online",
+ "description": "2024 massively multiplayer online role-playing game",
+ "extract": "Sky Meadow Online is a 2024 side-scrolling massively multiplayer online role-playing game. Reviewers praised its relaxed pace and criticised its difficulty spikes.",
+ "content_urls": {
+  "desktop": {
+   "page": "https://en.wikipedia.org/wiki/Sky_Meadow_Online"
+  }
+ }
+}

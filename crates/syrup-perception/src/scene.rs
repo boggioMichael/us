@@ -43,13 +43,7 @@ pub const VICTORY_WORDS: &[&str] = &[
     "congratulations",
     "well done",
 ];
-pub const LOADING_WORDS: &[&str] = &[
-    "loading",
-    "now loading",
-    "please wait",
-    "connecting",
-    "saving",
-];
+pub const LOADING_WORDS: &[&str] = &["loading", "now loading", "please wait", "connecting", "saving"];
 pub const MENU_WORDS: &[&str] = &[
     "new game",
     "continue",
@@ -70,9 +64,8 @@ pub const MENU_WORDS: &[&str] = &[
     "rules",
     "controls",
 ];
-pub const DIALOGUE_WORDS: &[&str] = &[
-    "ok", "cancel", "yes", "no", "accept", "decline", "next", "close", "skip", "confirm",
-];
+pub const DIALOGUE_WORDS: &[&str] =
+    &["ok", "cancel", "yes", "no", "accept", "decline", "next", "close", "skip", "confirm"];
 
 /// Lower-case words of `text`, with single spaces.
 fn words(text: &str) -> String {
@@ -172,10 +165,7 @@ pub fn signature(work: &WorkImage, interface: &dyn Fn(usize, usize) -> bool) -> 
             *h /= total;
         }
     }
-    SceneSignature {
-        hash,
-        histogram: hist,
-    }
+    SceneSignature { hash, histogram: hist }
 }
 
 /// Everything the classifier weighs.
@@ -190,12 +180,13 @@ pub struct SceneFeatures<'a> {
     pub center_panels: Vec<Rect>,
     /// Extra words a plugin says mean a particular scene.
     pub extra: &'a [(SceneKind, String)],
+    pub now_ms: u64,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SceneTracker {
     pub current: SceneLabel,
-    candidate: Option<(SceneKind, u32)>,
+    candidate: Option<(SceneKind, u32, u64)>,
     prev: Option<FrameMetrics>,
     sat_avg: f32,
     red_avg: f32,
@@ -218,23 +209,21 @@ impl SceneTracker {
         if let Some(p) = self.prev
             && (m.brightness - p.brightness).abs() > 0.25
         {
-            events.push(ObservedEvent::Flash {
-                brightness_delta: m.brightness - p.brightness,
-            });
+            events.push(ObservedEvent::Flash { brightness_delta: m.brightness - p.brightness });
         }
         let warmed = self.analysed > 3;
         let drained = warmed && self.sat_avg > 0.1 && m.saturation < self.sat_avg * 0.45;
         let reddened = warmed && m.red_tint > self.red_avg + 0.08;
-        let death_look = drained || reddened;
+        // A hit flashes red while everything moves; a death screen goes red or
+        // grey and holds still.
+        let death_look = (drained || reddened) && m.change < 0.05;
         if death_look && !self.drained {
-            events.push(ObservedEvent::ColorDrain {
-                red: m.red_tint,
-                saturation: m.saturation,
-            });
+            events.push(ObservedEvent::ColorDrain { red: m.red_tint, saturation: m.saturation });
         }
         self.drained = death_look;
-        if !death_look {
-            let a = if self.analysed <= 1 { 1.0 } else { 0.1 };
+        // The usual look is learned from ordinary frames only (not from hits' red flashes).
+        if !drained && !reddened {
+            let a = if self.analysed <= 1 { 1.0 } else { 0.05 };
             self.sat_avg += a * (m.saturation - self.sat_avg);
             self.red_avg += a * (m.red_tint - self.red_avg);
         }
@@ -243,30 +232,25 @@ impl SceneTracker {
         let (kind, conf, reason) = classify(f, death_look);
         let label = if kind == self.current.kind {
             self.candidate = None;
-            SceneLabel {
-                kind,
-                confidence: Confidence::new(conf.max(self.current.confidence.value() * 0.8)),
-                reason,
-            }
+            SceneLabel { kind, confidence: Confidence::new(conf.max(self.current.confidence.value() * 0.8)), reason }
         } else {
-            let held = match self.candidate {
-                Some((k, n)) if k == kind => n + 1,
-                _ => 1,
+            let (held, since) = match self.candidate {
+                Some((k, n, since)) if k == kind => (n + 1, since),
+                _ => (1, f.now_ms),
             };
-            self.candidate = Some((kind, held));
-            if conf >= 0.75 || held >= 2 || self.current.kind == SceneKind::Unknown {
+            self.candidate = Some((kind, held, since));
+            // A strong label switches at once; a weak one must hold for two
+            // analyses and over a second (a hit's red flash is not a death).
+            let lasted = f.now_ms.saturating_sub(since) >= 1000;
+            if conf >= 0.75
+                || (held >= 2 && (lasted || conf >= 0.6 && kind != SceneKind::Defeat))
+                || self.current.kind == SceneKind::Unknown
+            {
                 self.candidate = None;
                 if self.current.kind != SceneKind::Unknown || kind != SceneKind::Unknown {
-                    events.push(ObservedEvent::SceneChanged {
-                        from: self.current.kind,
-                        to: kind,
-                    });
+                    events.push(ObservedEvent::SceneChanged { from: self.current.kind, to: kind });
                 }
-                SceneLabel {
-                    kind,
-                    confidence: Confidence::new(conf),
-                    reason,
-                }
+                SceneLabel { kind, confidence: Confidence::new(conf), reason }
             } else {
                 self.current.clone()
             }
@@ -290,37 +274,22 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
             big.push('\n');
         }
     }
-    let mut best: (SceneKind, f32, String) =
-        (SceneKind::Unknown, 0.2, "nothing to go on yet".into());
+    let mut best: (SceneKind, f32, String) = (SceneKind::Unknown, 0.2, "nothing to go on yet".into());
     let mut consider = |k: SceneKind, c: f32, why: String| {
         if c > best.1 {
             best = (k, c, why);
         }
     };
-    for (list, kind) in [
-        (DEFEAT_WORDS, SceneKind::Defeat),
-        (VICTORY_WORDS, SceneKind::Victory),
-        (LOADING_WORDS, SceneKind::Loading),
-    ] {
+    for (list, kind) in
+        [(DEFEAT_WORDS, SceneKind::Defeat), (VICTORY_WORDS, SceneKind::Victory), (LOADING_WORDS, SceneKind::Loading)]
+    {
         let big_hits = phrases_in(&big, list);
         let hits = phrases_in(&all, list);
         if let Some(p) = big_hits.first() {
             consider(kind, 0.9, format!("big \"{p}\" on screen"));
         } else if let Some(p) = hits.first() {
-            let c = if kind == SceneKind::Loading {
-                0.6
-            } else {
-                0.55
-            };
-            consider(
-                kind,
-                c + if f.center_panels.is_empty() {
-                    0.0
-                } else {
-                    0.15
-                },
-                format!("\"{p}\" on screen"),
-            );
+            let c = if kind == SceneKind::Loading { 0.6 } else { 0.55 };
+            consider(kind, c + if f.center_panels.is_empty() { 0.0 } else { 0.15 }, format!("\"{p}\" on screen"));
         }
     }
     for (kind, word) in f.extra {
@@ -330,17 +299,9 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
     }
     let menu = phrases_in(&all, MENU_WORDS);
     if menu.len() >= 2 {
-        consider(
-            SceneKind::Menu,
-            0.8,
-            format!("menu words: {}", menu.join(", ")),
-        );
+        consider(SceneKind::Menu, 0.8, format!("menu words: {}", menu.join(", ")));
     } else if menu.len() == 1 && m.change < 0.02 && f.bars == 0 {
-        consider(
-            SceneKind::Menu,
-            0.5,
-            format!("\"{}\" on a still screen", menu[0]),
-        );
+        consider(SceneKind::Menu, 0.5, format!("\"{}\" on a still screen", menu[0]));
     }
     if !f.center_panels.is_empty() {
         let buttons = phrases_in(&all, DIALOGUE_WORDS);
@@ -350,38 +311,22 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
             c,
             format!(
                 "a panel with text over the middle{}",
-                if buttons.is_empty() {
-                    String::new()
-                } else {
-                    format!(" ({})", buttons.join(", "))
-                }
+                if buttons.is_empty() { String::new() } else { format!(" ({})", buttons.join(", ")) }
             ),
         );
     }
     if drained {
-        consider(
-            SceneKind::Defeat,
-            0.6,
-            "the colour drained or the screen went red".into(),
-        );
+        consider(SceneKind::Defeat, 0.6, "the colour drained or the screen went red".into());
     }
     if m.brightness < 0.1 && m.detail < 0.03 && m.change < 0.02 {
         consider(SceneKind::Loading, 0.5, "dark, plain and still".into());
     }
     if f.letterbox && m.change > 0.01 {
-        consider(
-            SceneKind::Cutscene,
-            0.65,
-            "letterbox bars and motion".into(),
-        );
+        consider(SceneKind::Cutscene, 0.65, "letterbox bars and motion".into());
     }
     if f.interface_regions > 0 && m.change > 0.005 {
         let c = (0.6 + 0.05 * f.bars as f32).min(0.8);
-        consider(
-            SceneKind::Gameplay,
-            c,
-            format!("{} interface elements and motion", f.interface_regions),
-        );
+        consider(SceneKind::Gameplay, c, format!("{} interface elements and motion", f.interface_regions));
     } else if m.change > 0.05 {
         consider(SceneKind::Gameplay, 0.45, "motion".into());
     }
@@ -408,12 +353,7 @@ mod tests {
 
     fn features<'a>(text: &'a [TextItem], change: f32, regions: usize) -> SceneFeatures<'a> {
         SceneFeatures {
-            metrics: FrameMetrics {
-                change,
-                brightness: 0.4,
-                saturation: 0.3,
-                ..Default::default()
-            },
+            metrics: FrameMetrics { change, brightness: 0.4, saturation: 0.3, ..Default::default() },
             text,
             frame: (960, 540),
             interface_regions: regions,
@@ -421,6 +361,7 @@ mod tests {
             letterbox: false,
             center_panels: Vec::new(),
             extra: &[],
+            now_ms: 0,
         }
     }
 
@@ -433,13 +374,10 @@ mod tests {
         let menu = [text("NEW GAME", 20), text("OPTIONS", 20), text("QUIT", 20)];
         let (l, ev) = t.update(&features(&menu, 0.0, 0));
         assert_eq!(l.kind, SceneKind::Menu);
-        assert!(ev.iter().any(|e| matches!(
-            e,
-            ObservedEvent::SceneChanged {
-                from: SceneKind::Defeat,
-                to: SceneKind::Menu
-            }
-        )));
+        assert!(
+            ev.iter()
+                .any(|e| matches!(e, ObservedEvent::SceneChanged { from: SceneKind::Defeat, to: SceneKind::Menu }))
+        );
         // Gameplay needs two analyses in a row to take over from a strong label.
         let (l, _) = t.update(&features(&[], 0.2, 4));
         assert_eq!(l.kind, SceneKind::Menu);
@@ -451,9 +389,6 @@ mod tests {
     fn phrases_match_whole_words_only() {
         assert!(has_phrase("you died again", "you died"));
         assert!(!has_phrase("studied", "died"));
-        assert_eq!(
-            phrases_in("NEW GAME\nOptions", MENU_WORDS),
-            vec!["new game", "options"]
-        );
+        assert_eq!(phrases_in("NEW GAME\nOptions", MENU_WORDS), vec!["new game", "options"]);
     }
 }

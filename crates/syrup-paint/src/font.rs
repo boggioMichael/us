@@ -68,10 +68,7 @@ struct Atlas {
 
 macro_rules! atlas_png {
     ($name:literal) => {
-        (
-            $name,
-            include_bytes!(concat!("../../../assets/syrup/fonts/", $name, ".png")) as &[u8],
-        )
+        ($name, include_bytes!(concat!("../../../assets/syrup/fonts/", $name, ".png")) as &[u8])
     };
 }
 
@@ -141,18 +138,10 @@ fn atlases() -> &'static Vec<Atlas> {
 fn pick(style: FontStyle) -> (&'static Atlas, f32) {
     let all = atlases();
     let same: Vec<&Atlas> = all.iter().filter(|a| a.bold == style.bold).collect();
-    let pool = if same.is_empty() {
-        all.iter().collect()
-    } else {
-        same
-    };
+    let pool = if same.is_empty() { all.iter().collect() } else { same };
     let size = style.size.max(4.0);
-    let chosen = pool
-        .iter()
-        .find(|a| a.size as f32 >= size - 0.5)
-        .or(pool.last())
-        .copied()
-        .expect("font atlases are embedded");
+    let chosen =
+        pool.iter().find(|a| a.size as f32 >= size - 0.5).or(pool.last()).copied().expect("font atlases are embedded");
     (chosen, size / chosen.size as f32)
 }
 
@@ -166,10 +155,7 @@ fn glyph(atlas: &Atlas, ch: char) -> Option<&Glyph> {
 /// Width of `text` in pixels.
 pub fn measure(text: &str, style: FontStyle) -> f32 {
     let (atlas, k) = pick(style);
-    text.chars()
-        .filter_map(|c| glyph(atlas, c))
-        .map(|g| g.advance * k)
-        .sum()
+    text.chars().filter_map(|c| glyph(atlas, c)).map(|g| g.advance * k).sum()
 }
 
 /// Splits `text` into lines no wider than `max_width` (words are never split
@@ -179,11 +165,7 @@ pub fn wrap(text: &str, style: FontStyle, max_width: f32) -> Vec<String> {
     for para in text.split('\n') {
         let mut line = String::new();
         for word in para.split_whitespace() {
-            let candidate = if line.is_empty() {
-                word.to_string()
-            } else {
-                format!("{line} {word}")
-            };
+            let candidate = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
             if measure(&candidate, style) <= max_width || line.is_empty() {
                 line = candidate;
             } else {
@@ -213,28 +195,13 @@ impl Painter<'_> {
     }
 
     /// Centred on `cx`.
-    pub fn text_centered(
-        &mut self,
-        cx: f32,
-        y: f32,
-        text: &str,
-        style: FontStyle,
-        color: Color,
-    ) -> f32 {
+    pub fn text_centered(&mut self, cx: f32, y: f32, text: &str, style: FontStyle, color: Color) -> f32 {
         let w = measure(text, style);
         self.text(cx - w / 2.0, y, text, style, color)
     }
 
     /// With an outline, for text over busy pictures.
-    pub fn text_outlined(
-        &mut self,
-        x: f32,
-        y: f32,
-        text: &str,
-        style: FontStyle,
-        color: Color,
-        outline: Color,
-    ) -> f32 {
+    pub fn text_outlined(&mut self, x: f32, y: f32, text: &str, style: FontStyle, color: Color, outline: Color) -> f32 {
         let r = (style.size / 14.0).clamp(1.0, 3.0);
         for (dx, dy) in [
             (-r, 0.0),
@@ -252,10 +219,7 @@ impl Painter<'_> {
     }
 
     fn glyph(&mut self, atlas: &Atlas, g: &Glyph, gx: f32, gy: f32, k: f32, color: Color) {
-        let (dw, dh) = (
-            (g.w as f32 * k).ceil() as i32 + 1,
-            (g.h as f32 * k).ceil() as i32 + 1,
-        );
+        let (dw, dh) = ((g.w as f32 * k).ceil() as i32 + 1, (g.h as f32 * k).ceil() as i32 + 1);
         let (ox, oy) = (gx.floor() as i32, gy.floor() as i32);
         let (fx, fy) = (gx - ox as f32, gy - oy as f32);
         for dy in 0..dh {
@@ -292,10 +256,7 @@ fn sample_bilinear(alpha: &GrayImage, g: &Glyph, u: f32, v: f32) -> f32 {
 }
 
 fn sample_area(alpha: &GrayImage, g: &Glyph, u: f32, v: f32, span: f32) -> f32 {
-    let (x0, y0) = (
-        (u - span / 2.0 + 0.5).floor() as i32,
-        (v - span / 2.0 + 0.5).floor() as i32,
-    );
+    let (x0, y0) = ((u - span / 2.0 + 0.5).floor() as i32, (v - span / 2.0 + 0.5).floor() as i32);
     let n = span.ceil().max(1.0) as i32;
     let mut sum = 0.0;
     for y in y0..y0 + n {
@@ -320,16 +281,9 @@ mod tests {
         let w32 = measure("Health 87/100", FontStyle::bold(32.0));
         assert!(w16 > 60.0 && w16 < 160.0, "{w16}");
         assert!((w32 / w16 - 2.0).abs() < 0.15, "{w32} {w16}");
-        let lines = wrap(
-            "Wait. That attack repeats every four seconds.",
-            FontStyle::regular(16.0),
-            150.0,
-        );
+        let lines = wrap("Wait. That attack repeats every four seconds.", FontStyle::regular(16.0), 150.0);
         assert!(
-            lines.len() >= 2
-                && lines
-                    .iter()
-                    .all(|l| measure(l, FontStyle::regular(16.0)) <= 150.0 || !l.contains(' ')),
+            lines.len() >= 2 && lines.iter().all(|l| measure(l, FontStyle::regular(16.0)) <= 150.0 || !l.contains(' ')),
             "{lines:?}"
         );
     }
@@ -337,31 +291,12 @@ mod tests {
     #[test]
     fn text_is_drawn_where_asked() {
         let mut img = RgbaImage::new(200, 40);
-        let w = Painter::new(&mut img).text(
-            10.0,
-            5.0,
-            "YOU DIED",
-            FontStyle::bold(20.0),
-            rgb(200, 0, 0),
-        );
-        let inked: Vec<(u32, u32)> = img
-            .enumerate_pixels()
-            .filter(|p| p.2.0[3] > 128)
-            .map(|p| (p.0, p.1))
-            .collect();
+        let w = Painter::new(&mut img).text(10.0, 5.0, "YOU DIED", FontStyle::bold(20.0), rgb(200, 0, 0));
+        let inked: Vec<(u32, u32)> = img.enumerate_pixels().filter(|p| p.2.0[3] > 128).map(|p| (p.0, p.1)).collect();
         assert!(!inked.is_empty());
-        let (min_x, max_x) = (
-            inked.iter().map(|p| p.0).min().unwrap(),
-            inked.iter().map(|p| p.0).max().unwrap(),
-        );
-        let (min_y, max_y) = (
-            inked.iter().map(|p| p.1).min().unwrap(),
-            inked.iter().map(|p| p.1).max().unwrap(),
-        );
-        assert!(
-            min_x >= 10 && (max_x as f32) <= 10.0 + w + 1.0,
-            "{min_x}..{max_x} w={w}"
-        );
+        let (min_x, max_x) = (inked.iter().map(|p| p.0).min().unwrap(), inked.iter().map(|p| p.0).max().unwrap());
+        let (min_y, max_y) = (inked.iter().map(|p| p.1).min().unwrap(), inked.iter().map(|p| p.1).max().unwrap());
+        assert!(min_x >= 10 && (max_x as f32) <= 10.0 + w + 1.0, "{min_x}..{max_x} w={w}");
         assert!(min_y >= 5 && max_y <= 5 + 22, "{min_y}..{max_y}");
     }
 }

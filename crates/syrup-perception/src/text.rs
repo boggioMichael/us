@@ -74,13 +74,60 @@ impl OcrEngine for NoOcr {
     }
 }
 
-/// Tesseract, through the syrup library (a `tesseract` process per read).
+/// Tesseract, as a subprocess (one per read). HUD text is small, colourful
+/// and drawn over pictures, so each crop is enlarged until its text is about
+/// 40 pixels tall and framed in its own background colour before Tesseract
+/// sees it; whole frames are passed as they are.
 pub struct TesseractOcr;
 
 impl TesseractOcr {
     pub fn available() -> bool {
         syrup::ocr::is_ocr_available()
     }
+
+    fn binary() -> &'static str {
+        static BIN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        BIN.get_or_init(|| {
+            if let Some(p) = std::env::var_os("TESSERACT_PATH") {
+                return p.to_string_lossy().into_owned();
+            }
+            #[cfg(windows)]
+            for p in
+                [r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]
+            {
+                if std::path::Path::new(p).exists() {
+                    return p.to_string();
+                }
+            }
+            "tesseract".to_string()
+        })
+    }
+}
+
+/// The median colour of an image's outermost pixels (its background).
+fn border_color(img: &RgbaImage) -> [u8; 3] {
+    let (w, h) = img.dimensions();
+    let mut ch: [Vec<u8>; 3] = Default::default();
+    let mut add = |x: u32, y: u32| {
+        let p = img.get_pixel(x, y).0;
+        for c in 0..3 {
+            ch[c].push(p[c]);
+        }
+    };
+    for x in 0..w {
+        add(x, 0);
+        add(x, h - 1);
+    }
+    for y in 0..h {
+        add(0, y);
+        add(w - 1, y);
+    }
+    let mut out = [0u8; 3];
+    for c in 0..3 {
+        let mid = ch[c].len() / 2;
+        out[c] = *ch[c].select_nth_unstable(mid).1;
+    }
+    out
 }
 
 impl OcrEngine for TesseractOcr {
@@ -89,29 +136,63 @@ impl OcrEngine for TesseractOcr {
     }
 
     fn read(&self, img: &RgbaImage, hint: TextHint) -> Result<Vec<OcrLine>, String> {
-        let psm = match hint {
-            TextHint::Line => 7,
-            TextHint::Block => 6,
-            TextHint::Sparse => 11,
-        };
-        let cfg = syrup::ocr::OcrConfig {
-            psm,
-            whitelist: None,
-        };
-        let Some(result) = syrup::ocr::ocr_region_with(img, 0, 0, img.width(), img.height(), &cfg)
-        else {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let (w, h) = img.dimensions();
+        if w < 4 || h < 4 {
             return Ok(Vec::new());
+        }
+        let (psm, k) = match hint {
+            TextHint::Line => (7, (40.0 / h as f32).clamp(1.0, 4.0)),
+            TextHint::Block => (6, (80.0 / h as f32).clamp(1.0, 3.0)),
+            TextHint::Sparse => (11, 1.0),
         };
-        let words: Vec<OcrWord> = result
-            .words
-            .into_iter()
-            .filter(|w| w.confidence >= 0.35 && !w.text.trim().is_empty())
-            .map(|w| OcrWord {
-                text: w.text.trim().to_string(),
-                rect: Rect::new(w.x as i32, w.y as i32, w.w, w.h),
-                confidence: w.confidence,
-            })
-            .collect();
+        let (sw, sh) = (((w as f32 * k) as u32).max(1), ((h as f32 * k) as u32).max(1));
+        let margin = if hint == TextHint::Sparse { 0 } else { 12 };
+        let bg = border_color(img);
+        let mut canvas =
+            RgbaImage::from_pixel(sw + 2 * margin, sh + 2 * margin, image::Rgba([bg[0], bg[1], bg[2], 255]));
+        let scaled = if k > 1.0 {
+            image::imageops::resize(img, sw, sh, image::imageops::FilterType::CatmullRom)
+        } else {
+            img.clone()
+        };
+        image::imageops::replace(&mut canvas, &scaled, margin as i64, margin as i64);
+        let path = std::env::temp_dir().join(format!(
+            "syrup-ocr-{}-{}.png",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        canvas.save(&path).map_err(|e| e.to_string())?;
+        let out = std::process::Command::new(Self::binary())
+            .arg(&path)
+            .arg("stdout")
+            .args(["--psm", &psm.to_string(), "-c", "preserve_interword_spaces=1", "tsv"])
+            .env("OMP_THREAD_LIMIT", "1")
+            .output();
+        let _ = std::fs::remove_file(&path);
+        let out = out.map_err(|e| e.to_string())?;
+        let tsv = String::from_utf8_lossy(&out.stdout);
+        let mut words = Vec::new();
+        for line in tsv.lines().skip(1) {
+            let f: Vec<&str> = line.split('\t').collect();
+            if f.len() < 12 || f[11].trim().is_empty() {
+                continue;
+            }
+            let conf: f32 = f[10].trim().parse().unwrap_or(-1.0);
+            if conf < 30.0 {
+                continue;
+            }
+            let num = |i: usize| f[i].trim().parse::<f32>().unwrap_or(0.0);
+            let (x, y, ww, hh) = (num(6) - margin as f32, num(7) - margin as f32, num(8), num(9));
+            let rect = Rect::new(
+                (x / k).floor().max(0.0) as i32,
+                (y / k).floor().max(0.0) as i32,
+                (ww / k).ceil() as u32,
+                (hh / k).ceil() as u32,
+            );
+            words.push(OcrWord { text: f[11].trim().to_string(), rect, confidence: conf / 100.0 });
+        }
         Ok(group_lines(words))
     }
 
@@ -141,17 +222,8 @@ pub fn group_lines(mut words: Vec<OcrWord>) -> Vec<OcrLine> {
             l.sort_by_key(|w| w.rect.x);
             let rect = l.iter().skip(1).fold(l[0].rect, |a, b| a.union(&b.rect));
             let confidence = l.iter().map(|w| w.confidence).sum::<f32>() / l.len() as f32;
-            let text = l
-                .iter()
-                .map(|w| w.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ");
-            OcrLine {
-                text,
-                rect,
-                words: l,
-                confidence,
-            }
+            let text = l.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+            OcrLine { text, rect, words: l, confidence }
         })
         .collect()
 }
@@ -188,19 +260,9 @@ mod windows_ocr {
             let writer = DataWriter::new().ok()?;
             writer.WriteBytes(&bgra).ok()?;
             let buffer = writer.DetachBuffer().ok()?;
-            let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
-                &buffer,
-                BitmapPixelFormat::Bgra8,
-                w as i32,
-                h as i32,
-            )
-            .ok()?;
-            SoftwareBitmap::ConvertWithAlpha(
-                &bitmap,
-                BitmapPixelFormat::Bgra8,
-                BitmapAlphaMode::Premultiplied,
-            )
-            .ok()
+            let bitmap =
+                SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w as i32, h as i32).ok()?;
+            SoftwareBitmap::ConvertWithAlpha(&bitmap, BitmapPixelFormat::Bgra8, BitmapAlphaMode::Premultiplied).ok()
         }
     }
 
@@ -212,11 +274,7 @@ mod windows_ocr {
         fn read(&self, img: &RgbaImage, hint: TextHint) -> Result<Vec<OcrLine>, String> {
             // Small text reads better enlarged; whole frames are read as they are.
             let (w, h) = img.dimensions();
-            let mut k = if hint == TextHint::Sparse || h >= 60 {
-                1.0f32
-            } else {
-                2.0
-            };
+            let mut k = if hint == TextHint::Sparse || h >= 60 { 1.0f32 } else { 2.0 };
             let biggest = w.max(h) as f32 * k;
             if biggest > self.max_dim as f32 {
                 k *= self.max_dim as f32 / biggest;
@@ -234,11 +292,7 @@ mod windows_ocr {
                 img
             };
             let bitmap = Self::bitmap(src).ok_or("could not make a bitmap")?;
-            let result = self
-                .engine
-                .RecognizeAsync(&bitmap)
-                .and_then(|op| op.get())
-                .map_err(|e| e.to_string())?;
+            let result = self.engine.RecognizeAsync(&bitmap).and_then(|op| op.get()).map_err(|e| e.to_string())?;
             let mut out = Vec::new();
             for line in result.Lines().map_err(|e| e.to_string())? {
                 let mut words = Vec::new();
@@ -252,33 +306,18 @@ mod windows_ocr {
                         (r.Height / k).ceil() as u32,
                     );
                     if !text.trim().is_empty() {
-                        words.push(OcrWord {
-                            text,
-                            rect,
-                            confidence: 0.85,
-                        });
+                        words.push(OcrWord { text, rect, confidence: 0.85 });
                     }
                 }
                 if words.is_empty() {
                     continue;
                 }
-                let rect = words
-                    .iter()
-                    .skip(1)
-                    .fold(words[0].rect, |a, b| a.union(&b.rect));
-                let text = line.Text().map(|t| t.to_string()).unwrap_or_else(|_| {
-                    words
-                        .iter()
-                        .map(|w| w.text.clone())
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                });
-                out.push(OcrLine {
-                    text,
-                    rect,
-                    words,
-                    confidence: 0.85,
-                });
+                let rect = words.iter().skip(1).fold(words[0].rect, |a, b| a.union(&b.rect));
+                let text = line
+                    .Text()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|_| words.iter().map(|w| w.text.clone()).collect::<Vec<_>>().join(" "));
+                out.push(OcrLine { text, rect, words, confidence: 0.85 });
             }
             Ok(out)
         }
@@ -309,9 +348,7 @@ pub fn engine_named(name: &str) -> Option<Arc<dyn OcrEngine>> {
     match name {
         "auto" => Some(best_engine()),
         "none" | "off" => Some(Arc::new(NoOcr)),
-        "tesseract" => {
-            TesseractOcr::available().then(|| Arc::new(TesseractOcr) as Arc<dyn OcrEngine>)
-        }
+        "tesseract" => TesseractOcr::available().then(|| Arc::new(TesseractOcr) as Arc<dyn OcrEngine>),
         #[cfg(windows)]
         "windows" => WindowsOcr::new().map(|e| Arc::new(e) as Arc<dyn OcrEngine>),
         _ => None,
@@ -372,20 +409,14 @@ pub fn find_text_lines(img: &RgbaImage, area: Rect) -> Vec<(Rect, f32)> {
         if !(6..=96).contains(&ph) || pw < 12 || (pw as f32) < ph as f32 * 1.1 {
             continue;
         }
-        let density = (y..y + h)
-            .flat_map(|yy| (x..x + w).map(move |xx| (xx, yy)))
-            .filter(|(xx, yy)| on[yy * gw + xx])
-            .count() as f32
-            / (w * h) as f32;
+        let density =
+            (y..y + h).flat_map(|yy| (x..x + w).map(move |xx| (xx, yy))).filter(|(xx, yy)| on[yy * gw + xx]).count()
+                as f32
+                / (w * h) as f32;
         if density < 0.25 {
             continue;
         }
-        let rect = Rect::new(
-            area.x + (x * CELL) as i32,
-            area.y + (y * CELL) as i32,
-            pw as u32,
-            ph as u32,
-        );
+        let rect = Rect::new(area.x + (x * CELL) as i32, area.y + (y * CELL) as i32, pw as u32, ph as u32);
         out.push((rect, density * (pw as f32).sqrt()));
     }
     out.sort_by(|a, b| b.1.total_cmp(&a.1));
@@ -432,26 +463,18 @@ enum Job {
         image: Arc<RgbaImage>,
         ts: u64,
     },
+    /// A region, as one or more crops (a bar: its label, itself, its number).
     Region {
         id: u32,
         content: u64,
-        image: RgbaImage,
-        origin: (i32, i32),
+        crops: Vec<(RgbaImage, (i32, i32))>,
         ts: u64,
     },
 }
 
 enum Done {
-    Full {
-        items: Vec<TextItem>,
-        ts: u64,
-    },
-    Region {
-        id: u32,
-        content: u64,
-        items: Vec<TextItem>,
-        ts: u64,
-    },
+    Full { items: Vec<TextItem>, ts: u64 },
+    Region { id: u32, content: u64, items: Vec<TextItem>, ts: u64 },
 }
 
 struct RegionRead {
@@ -488,10 +511,7 @@ fn run_job(engine: &dyn OcrEngine, job: Job, max_lines: usize) -> Done {
             } else {
                 let full = Rect::new(0, 0, image.width(), image.height());
                 for (r, _) in find_text_lines(&image, full).into_iter().take(max_lines) {
-                    let crop_rect = r
-                        .inflate(3)
-                        .clip(image.width(), image.height())
-                        .unwrap_or(r);
+                    let crop_rect = r.inflate(3).clip(image.width(), image.height()).unwrap_or(r);
                     let crop = image::imageops::crop_imm(
                         &*image,
                         crop_rect.x as u32,
@@ -501,46 +521,21 @@ fn run_job(engine: &dyn OcrEngine, job: Job, max_lines: usize) -> Done {
                     )
                     .to_image();
                     if let Ok(lines) = engine.read(&crop, TextHint::Line) {
-                        items.extend(
-                            lines
-                                .into_iter()
-                                .map(|l| item(l, (crop_rect.x, crop_rect.y), engine.name())),
-                        );
+                        items.extend(lines.into_iter().map(|l| item(l, (crop_rect.x, crop_rect.y), engine.name())));
                     }
                 }
             }
-            Done::Full {
-                items: clean(items),
-                ts,
-            }
+            Done::Full { items: clean(items), ts }
         }
-        Job::Region {
-            id,
-            content,
-            image,
-            origin,
-            ts,
-        } => {
-            let hint = if image.height() <= 40 {
-                TextHint::Line
-            } else {
-                TextHint::Block
-            };
-            let items = engine
-                .read(&image, hint)
-                .map(|lines| {
-                    lines
-                        .into_iter()
-                        .map(|l| item(l, origin, engine.name()))
-                        .collect()
-                })
-                .unwrap_or_default();
-            Done::Region {
-                id,
-                content,
-                items: clean(items),
-                ts,
+        Job::Region { id, content, crops, ts } => {
+            let mut items = Vec::new();
+            for (image, origin) in crops {
+                let hint = if image.height() <= 40 { TextHint::Line } else { TextHint::Block };
+                if let Ok(lines) = engine.read(&image, hint) {
+                    items.extend(lines.into_iter().map(|l| item(l, origin, engine.name())));
+                }
             }
+            Done::Region { id, content, items: clean(items), ts }
         }
     }
 }
@@ -649,21 +644,9 @@ impl TextReader {
                 self.full_at_ms = ts;
                 self.fresh_full = true;
             }
-            Done::Region {
-                id,
-                content,
-                items,
-                ts,
-            } => {
+            Done::Region { id, content, items, ts } => {
                 self.pending_regions.remove(&id);
-                self.regions.insert(
-                    id,
-                    RegionRead {
-                        content,
-                        at_ms: ts,
-                        items,
-                    },
-                );
+                self.regions.insert(id, RegionRead { content, at_ms: ts, items });
                 self.fresh_regions.insert(id);
             }
         }
@@ -671,12 +654,7 @@ impl TextReader {
 
     /// Schedules reads for this frame and returns everything currently known
     /// to be written on screen.
-    pub fn update(
-        &mut self,
-        frame: &Frame,
-        regions: &[RegionToRead],
-        force_full: bool,
-    ) -> Vec<TextItem> {
+    pub fn update(&mut self, frame: &Frame, regions: &[RegionToRead], force_full: bool) -> Vec<TextItem> {
         self.fresh_full = false;
         self.fresh_regions.clear();
         if let Some(rx) = &self.done {
@@ -690,16 +668,10 @@ impl TextReader {
         }
         let now = frame.timestamp_ms;
         let (fw, fh) = frame.size();
-        let full_due = self
-            .last_full_ms
-            .is_none_or(|t| now.saturating_sub(t) >= self.cfg.full_every_ms)
-            || force_full;
+        let full_due = self.last_full_ms.is_none_or(|t| now.saturating_sub(t) >= self.cfg.full_every_ms) || force_full;
         if full_due && !self.pending_full {
             self.last_full_ms = Some(now);
-            self.submit(Job::Full {
-                image: frame.image.clone(),
-                ts: now,
-            });
+            self.submit(Job::Full { image: frame.image.clone(), ts: now });
         }
         // Regions: never read first, then changed ones; bars before other things; small before big.
         let frame_area = (fw as u64 * fh as u64).max(1);
@@ -709,49 +681,34 @@ impl TextReader {
             .filter(|r| !self.pending_regions.contains(&r.id))
             .filter(|r| match self.regions.get(&r.id) {
                 None => true,
-                Some(read) => {
-                    read.content != r.content
-                        && now.saturating_sub(read.at_ms) >= self.cfg.region_every_ms
-                }
+                Some(read) => read.content != r.content && now.saturating_sub(read.at_ms) >= self.cfg.region_every_ms,
             })
             .collect();
         due.sort_by_key(|r| (self.regions.contains_key(&r.id), !r.is_bar, r.rect.area()));
         for r in due.into_iter().take(self.cfg.max_region_reads) {
-            // Bars get room for the label before them and the number after them.
-            let pad_x = if r.is_bar {
-                (r.rect.h as i32 * 6).max(12)
+            let rects: Vec<Rect> = if r.is_bar {
+                // A bar's label is before it, its number on it or after it.
+                let h = r.rect.h.max(8) as i32;
+                let (y, hh) = (r.rect.y - h / 2, r.rect.h + h as u32);
+                vec![
+                    Rect::new(r.rect.x - 6 * h, y, 6 * h as u32, hh),
+                    Rect::new(r.rect.x - 2, r.rect.y - 2, r.rect.w + 4, r.rect.h + 4),
+                    Rect::new(r.rect.right(), y, 8 * h as u32, hh),
+                ]
             } else {
-                3
+                vec![r.rect.inflate(3)]
             };
-            let pad_y = if r.is_bar {
-                (r.rect.h as i32 / 2).max(3)
-            } else {
-                3
-            };
-            let crop = Rect::new(
-                r.rect.x - pad_x,
-                r.rect.y - pad_y,
-                r.rect.w + 2 * pad_x as u32,
-                r.rect.h + 2 * pad_y as u32,
-            );
-            let Some(crop) = crop.clip(fw, fh) else {
-                continue;
-            };
-            let image = image::imageops::crop_imm(
-                &*frame.image,
-                crop.x as u32,
-                crop.y as u32,
-                crop.w,
-                crop.h,
-            )
-            .to_image();
-            self.submit(Job::Region {
-                id: r.id,
-                content: r.content,
-                image,
-                origin: (crop.x, crop.y),
-                ts: now,
-            });
+            let crops: Vec<(RgbaImage, (i32, i32))> = rects
+                .into_iter()
+                .filter_map(|c| c.clip(fw, fh))
+                .filter(|c| c.w >= 6 && c.h >= 6)
+                .map(|c| {
+                    (image::imageops::crop_imm(&*frame.image, c.x as u32, c.y as u32, c.w, c.h).to_image(), (c.x, c.y))
+                })
+                .collect();
+            if !crops.is_empty() {
+                self.submit(Job::Region { id: r.id, content: r.content, crops, ts: now });
+            }
         }
         // Forget regions that are gone; let whole-screen text expire.
         let alive: HashSet<u32> = regions.iter().map(|r| r.id).collect();
@@ -776,16 +733,10 @@ impl TextReader {
         let from_regions = out.len();
         for t in &self.full_items {
             // Region reads are newer and closer; whole-screen text they already cover is dropped.
-            if out[..from_regions]
-                .iter()
-                .any(|o| o.rect.iou(&t.rect) > 0.3 || o.rect.contains_rect(&t.rect))
-            {
+            if out[..from_regions].iter().any(|o| o.rect.iou(&t.rect) > 0.3 || o.rect.contains_rect(&t.rect)) {
                 continue;
             }
-            out.push(TextItem {
-                fresh: self.fresh_full,
-                ..t.clone()
-            });
+            out.push(TextItem { fresh: self.fresh_full, ..t.clone() });
         }
         out
     }
@@ -800,20 +751,8 @@ mod tests {
     fn text_lines_are_found_where_text_is() {
         let mut img = RgbaImage::from_pixel(640, 360, image::Rgba([30, 60, 40, 255]));
         let mut p = Painter::new(&mut img);
-        p.text(
-            40.0,
-            30.0,
-            "SCORE 2 - 1",
-            FontStyle::bold(22.0),
-            rgb(250, 250, 250),
-        );
-        p.text(
-            400.0,
-            300.0,
-            "TIME 0:07",
-            FontStyle::bold(22.0),
-            rgb(250, 250, 250),
-        );
+        p.text(40.0, 30.0, "SCORE 2 - 1", FontStyle::bold(22.0), rgb(250, 250, 250));
+        p.text(400.0, 300.0, "TIME 0:07", FontStyle::bold(22.0), rgb(250, 250, 250));
         p.fill_rect(300, 150, 60, 60, rgb(200, 30, 30));
         let lines = find_text_lines(&img, Rect::new(0, 0, 640, 360));
         assert!(lines.len() >= 2, "{lines:?}");
@@ -825,16 +764,8 @@ mod tests {
 
     #[test]
     fn words_group_into_lines() {
-        let w = |t: &str, x: i32, y: i32| OcrWord {
-            text: t.into(),
-            rect: Rect::new(x, y, 30, 12),
-            confidence: 0.9,
-        };
-        let lines = group_lines(vec![
-            w("0:07", 90, 11),
-            w("TIME", 50, 10),
-            w("SCORE", 10, 100),
-        ]);
+        let w = |t: &str, x: i32, y: i32| OcrWord { text: t.into(), rect: Rect::new(x, y, 30, 12), confidence: 0.9 };
+        let lines = group_lines(vec![w("0:07", 90, 11), w("TIME", 50, 10), w("SCORE", 10, 100)]);
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].text, "TIME 0:07");
         assert_eq!(lines[1].text, "SCORE");
@@ -847,19 +778,9 @@ mod tests {
             return;
         }
         let mut img = RgbaImage::from_pixel(200, 40, image::Rgba([20, 20, 30, 255]));
-        Painter::new(&mut img).text(
-            10.0,
-            8.0,
-            "AMMO 24",
-            FontStyle::bold(20.0),
-            rgb(230, 230, 160),
-        );
+        Painter::new(&mut img).text(10.0, 8.0, "AMMO 24", FontStyle::bold(20.0), rgb(230, 230, 160));
         let lines = TesseractOcr.read(&img, TextHint::Line).unwrap();
-        let text: String = lines
-            .iter()
-            .map(|l| l.text.clone())
-            .collect::<Vec<_>>()
-            .join(" ");
+        let text: String = lines.iter().map(|l| l.text.clone()).collect::<Vec<_>>().join(" ");
         assert!(text.contains("AMMO") && text.contains("24"), "{text:?}");
     }
 }

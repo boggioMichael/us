@@ -123,9 +123,7 @@ impl GameKind {
     pub fn parse(s: &str) -> Option<GameKind> {
         match s.to_ascii_lowercase().as_str() {
             "dungeon" | "dungeon3d" | "3d" | "fps" => Some(GameKind::Dungeon),
-            "scroller" | "skymeadow" | "sky-meadow" | "2d" | "mmo" | "platformer" => {
-                Some(GameKind::Scroller)
-            }
+            "scroller" | "skymeadow" | "sky-meadow" | "2d" | "mmo" | "platformer" => Some(GameKind::Scroller),
             "cards" | "card" | "highcard" | "high-card" => Some(GameKind::Cards),
             _ => None,
         }
@@ -230,12 +228,7 @@ impl FrameSource for Session {
         }
         let index = self.index;
         let (image, truth) = self.step_image();
-        Ok(Capture::Frame(Frame::new(
-            index,
-            truth.t_ms,
-            image,
-            self.info.clone(),
-        )))
+        Ok(Capture::Frame(Frame::new(index, truth.t_ms, image, self.info.clone())))
     }
 
     fn nominal_fps(&self) -> f32 {
@@ -265,10 +258,7 @@ mod tests {
                 match (a.next().unwrap(), b.next().unwrap()) {
                     (Capture::Frame(fa), Capture::Frame(fb)) => {
                         assert_eq!(fa.timestamp_ms, fb.timestamp_ms);
-                        assert!(
-                            fa.image.as_raw() == fb.image.as_raw(),
-                            "{kind:?} frame {frames} differs"
-                        );
+                        assert!(fa.image.as_raw() == fb.image.as_raw(), "{kind:?} frame {frames} differs");
                         frames += 1;
                     }
                     (Capture::Ended, Capture::Ended) => break,

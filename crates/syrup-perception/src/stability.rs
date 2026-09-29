@@ -174,12 +174,7 @@ impl Default for StabilityMap {
 
 /// Connected groups of `true` cells (8-connected), as (x, y, w, h) in cells,
 /// after closing one-cell gaps.
-pub fn cell_components(
-    gw: usize,
-    gh: usize,
-    cells: &[bool],
-    min_cells: usize,
-) -> Vec<(usize, usize, usize, usize)> {
+pub fn cell_components(gw: usize, gh: usize, cells: &[bool], min_cells: usize) -> Vec<(usize, usize, usize, usize)> {
     // Close: dilate then erode, so a dotted border or a gap between letters joins up.
     let dilate = |src: &[bool]| {
         let mut out = vec![false; src.len()];
@@ -213,11 +208,7 @@ pub fn cell_components(
         }
         out
     };
-    let closed: Vec<bool> = erode(&dilate(cells))
-        .iter()
-        .zip(cells)
-        .map(|(a, b)| *a || *b)
-        .collect();
+    let closed: Vec<bool> = erode(&dilate(cells)).iter().zip(cells).map(|(a, b)| *a || *b).collect();
     let mut label = vec![0u32; closed.len()];
     let mut out = Vec::new();
     let mut next = 0u32;
@@ -263,13 +254,7 @@ mod tests {
 
     fn work(w: usize, h: usize, f: impl Fn(usize, usize) -> u8) -> WorkImage {
         let luma: Vec<u8> = (0..w * h).map(|i| f(i % w, i / w)).collect();
-        WorkImage {
-            w,
-            h,
-            scale: 1.0,
-            rgb: luma.iter().map(|l| [*l, *l, *l]).collect(),
-            luma,
-        }
+        WorkImage { w, h, scale: 1.0, rgb: luma.iter().map(|l| [*l, *l, *l]).collect(), luma }
     }
 
     #[test]

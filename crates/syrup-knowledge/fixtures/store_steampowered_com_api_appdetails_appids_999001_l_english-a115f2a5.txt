@@ -1,0 +1,25 @@
+{
+ "999001": {
+  "success": true,
+  "data": {
+   "type": "game",
+   "name": "Sky Meadow Online",
+   "steam_appid": 999001,
+   "short_description": "Explore floating meadows, battle slimes and team up with friends in a cozy side-scrolling MMORPG.",
+   "genres": [
+    {
+     "id": "29",
+     "description": "Massively Multiplayer"
+    },
+    {
+     "id": "3",
+     "description": "RPG"
+    },
+    {
+     "id": "37",
+     "description": "Free to Play"
+    }
+   ]
+  }
+ }
+}

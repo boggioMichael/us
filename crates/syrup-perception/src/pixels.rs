@@ -94,13 +94,7 @@ impl WorkImage {
                 luma_v.push(luma(c[0], c[1], c[2]));
             }
         }
-        WorkImage {
-            w,
-            h,
-            scale,
-            rgb,
-            luma: luma_v,
-        }
+        WorkImage { w, h, scale, rgb, luma: luma_v }
     }
 
     /// A rectangle in work pixels, in frame pixels.
@@ -153,11 +147,7 @@ pub fn thumb_difference(a: &[u8], b: &[u8]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 1.0;
     }
-    a.iter()
-        .zip(b)
-        .map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs())
-        .sum::<u32>() as f32
-        / (a.len() as f32 * 255.0)
+    a.iter().zip(b).map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs()).sum::<u32>() as f32 / (a.len() as f32 * 255.0)
 }
 
 /// Difference hash (9x8 area samples, 64 bits) of a region of the frame.
@@ -248,11 +238,7 @@ mod tests {
     #[test]
     fn work_image_maps_back_to_the_frame() {
         let img = RgbaImage::from_fn(960, 540, |x, _| {
-            if x < 480 {
-                image::Rgba([200, 0, 0, 255])
-            } else {
-                image::Rgba([0, 0, 200, 255])
-            }
+            if x < 480 { image::Rgba([200, 0, 0, 255]) } else { image::Rgba([0, 0, 200, 255]) }
         });
         let w = WorkImage::from_frame(&img, 320);
         assert_eq!((w.w, w.h), (320, 180));
@@ -265,12 +251,8 @@ mod tests {
 
     #[test]
     fn hashes_tell_pictures_apart() {
-        let a = RgbaImage::from_fn(64, 64, |x, y| {
-            image::Rgba([(x * 4) as u8, (y * 4) as u8, 0, 255])
-        });
-        let b = RgbaImage::from_fn(64, 64, |x, y| {
-            image::Rgba([(255 - x * 4) as u8, (y * 4) as u8, 0, 255])
-        });
+        let a = RgbaImage::from_fn(64, 64, |x, y| image::Rgba([(x * 4) as u8, (y * 4) as u8, 0, 255]));
+        let b = RgbaImage::from_fn(64, 64, |x, y| image::Rgba([(255 - x * 4) as u8, (y * 4) as u8, 0, 255]));
         let full = Rect::new(0, 0, 64, 64);
         assert_eq!(dhash(&a, full), dhash(&a.clone(), full));
         assert!((dhash(&a, full) ^ dhash(&b, full)).count_ones() > 20);

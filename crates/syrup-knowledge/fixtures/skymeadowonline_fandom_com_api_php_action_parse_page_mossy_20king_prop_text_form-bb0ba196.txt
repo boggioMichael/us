@@ -1,0 +1,7 @@
+{
+ "parse": {
+  "title": "Mossy King",
+  "pageid": 1,
+  "text": "<div class=\"mw-parser-output\"><aside class=\"portable-infobox\"><h2>Mossy King</h2><div>Level 30</div></aside><p>The Mossy King is the boss of Mossy Hills. The Mossy King is weak to fire.<sup class=\"reference\">[1]</sup></p><p>In version 1.2 the Mossy King attacked every 3 seconds.<sup class=\"reference\">[2]</sup></p><p>Players often fight the Mossy King from the left ledge, where its slam cannot reach. It is recommended to keep a potion ready for its second phase.<sup class=\"reference\">[3]</sup></p><p>Some players believe the Mossy King might have a hidden third phase.<sup class=\"reference\">[4]</sup></p><p>The Mossy King drops the Moss Crown.<sup class=\"reference\">[5]</sup></p><p>Defeating the Mossy King reveals that the king is actually the lost gardener.<sup class=\"reference\">[6]</sup></p><table class=\"wikitable\"><tr><th>Drop</th><td>Moss Crown</td></tr></table></div>"
+ }
+}

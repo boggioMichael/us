@@ -80,9 +80,7 @@ pub struct KnowledgeSource {
 }
 
 /// How much of the story a fact gives away.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum SpoilerLevel {
     /// Gives nothing away: controls, mechanics, general tips.

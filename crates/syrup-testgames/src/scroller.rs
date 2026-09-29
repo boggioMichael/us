@@ -29,48 +29,13 @@ const PLATFORMS: [(f32, f32, f32); 5] = [
     (2500.0, 330.0, 240.0),
 ];
 
-const HP_BAR: Rect = Rect {
-    x: 180,
-    y: 494,
-    w: 240,
-    h: 18,
-};
-const MP_BAR: Rect = Rect {
-    x: 430,
-    y: 494,
-    w: 240,
-    h: 18,
-};
-const EXP_BAR: Rect = Rect {
-    x: 0,
-    y: 528,
-    w: 960,
-    h: 12,
-};
-const BOSS_BAR: Rect = Rect {
-    x: 280,
-    y: 58,
-    w: 400,
-    h: 18,
-};
-const MINIMAP: Rect = Rect {
-    x: 8,
-    y: 8,
-    w: 230,
-    h: 118,
-};
-const QUEST: Rect = Rect {
-    x: 700,
-    y: 8,
-    w: 252,
-    h: 60,
-};
-const CHAT: Rect = Rect {
-    x: 8,
-    y: 392,
-    w: 360,
-    h: 86,
-};
+const HP_BAR: Rect = Rect { x: 180, y: 494, w: 240, h: 18 };
+const MP_BAR: Rect = Rect { x: 430, y: 494, w: 240, h: 18 };
+const EXP_BAR: Rect = Rect { x: 0, y: 528, w: 960, h: 12 };
+const BOSS_BAR: Rect = Rect { x: 280, y: 58, w: 400, h: 18 };
+const MINIMAP: Rect = Rect { x: 8, y: 8, w: 230, h: 118 };
+const QUEST: Rect = Rect { x: 700, y: 8, w: 252, h: 60 };
+const CHAT: Rect = Rect { x: 8, y: 392, w: 360, h: 86 };
 const HP_COLOR: [u8; 3] = [220, 50, 60];
 const MP_COLOR: [u8; 3] = [50, 110, 230];
 const EXP_COLOR: [u8; 3] = [240, 200, 60];
@@ -212,15 +177,7 @@ impl Scroller {
             let x = self.rng.range(120.0, WORLD_W - 120.0);
             if (x - self.px).abs() > 260.0 {
                 let dir = if self.rng.chance(0.5) { 1.0 } else { -1.0 };
-                self.mobs.push(Mob {
-                    x,
-                    hp: 3,
-                    max_hp: 3,
-                    dir,
-                    boss: false,
-                    next_attack: 0,
-                    hurt_until: 0,
-                });
+                self.mobs.push(Mob { x, hp: 3, max_hp: 3, dir, boss: false, next_attack: 0, hurt_until: 0 });
                 return;
             }
         }
@@ -270,14 +227,11 @@ impl Scroller {
                 next_attack: now + 1500,
                 hurt_until: 0,
             });
-            self.emit(TruthEventKind::BossAppeared {
-                name: "Mossy King".into(),
-            });
+            self.emit(TruthEventKind::BossAppeared { name: "Mossy King".into() });
         }
         // Chat.
         if now >= self.next_chat {
-            self.chat
-                .push(CHAT_LINES[self.chat_i % CHAT_LINES.len()].to_string());
+            self.chat.push(CHAT_LINES[self.chat_i % CHAT_LINES.len()].to_string());
             self.chat_i += 1;
             if self.chat.len() > 4 {
                 self.chat.remove(0);
@@ -307,28 +261,15 @@ impl Scroller {
         let on_ground = self.py >= GROUND - 0.5;
         for i in 0..self.mobs.len() {
             let reach = if self.mobs[i].boss { 70.0 } else { 30.0 };
-            if (self.mobs[i].x - self.px).abs() < reach
-                && on_ground
-                && now >= self.mobs[i].next_attack
-            {
-                let (lo, hi) = if self.mobs[i].boss {
-                    (240.0, 320.0)
-                } else {
-                    (60.0, 110.0)
-                };
+            if (self.mobs[i].x - self.px).abs() < reach && on_ground && now >= self.mobs[i].next_attack {
+                let (lo, hi) = if self.mobs[i].boss { (240.0, 320.0) } else { (60.0, 110.0) };
                 damage += self.rng.range(lo, hi);
                 self.mobs[i].next_attack = now + if self.mobs[i].boss { 1000 } else { 900 };
             }
         }
         if damage > 0.0 {
             self.hp = (self.hp - damage).max(0.0);
-            self.numbers.push((
-                self.px,
-                self.py - 60.0,
-                format!("{}", damage.round() as i32),
-                now + 900,
-                true,
-            ));
+            self.numbers.push((self.px, self.py - 60.0, format!("{}", damage.round() as i32), now + 900, true));
         }
         if self.hp <= 0.0 {
             self.emit(TruthEventKind::Died);
@@ -340,9 +281,7 @@ impl Scroller {
             let amount = self.max_hp() * 0.45;
             self.hp = (self.hp + amount).min(self.max_hp());
             self.next_potion = now + 3000;
-            self.emit(TruthEventKind::Healed {
-                amount: amount as f64,
-            });
+            self.emit(TruthEventKind::Healed { amount: amount as f64 });
         }
         // Fight or walk.
         let target = self
@@ -362,7 +301,7 @@ impl Scroller {
                     self.next_attack = now + 450;
                     self.attacks += 1;
                     self.slash_until = now + 160;
-                    let skill = self.attacks % 4 == 0 && self.mp >= 60.0;
+                    let skill = self.attacks.is_multiple_of(4) && self.mp >= 60.0;
                     if skill {
                         self.mp -= 60.0;
                     }
@@ -469,26 +408,19 @@ impl Scroller {
             let buf: &mut [u8] = img.as_mut();
             for y in 0..h {
                 let t = y as f32 / GROUND;
-                let sky = [
-                    (120.0 + 90.0 * t) as u8,
-                    (180.0 + 55.0 * t) as u8,
-                    (240.0 + 5.0 * t).min(255.0) as u8,
-                ];
+                let sky = [(120.0 + 90.0 * t) as u8, (180.0 + 55.0 * t) as u8, (240.0 + 5.0 * t).min(255.0) as u8];
                 for x in 0..w {
                     let wx_far = x as f32 + cam * 0.2;
-                    let far =
-                        250.0 + 35.0 * (wx_far / 110.0).sin() + 18.0 * (wx_far / 47.0 + 1.3).sin();
+                    let far = 250.0 + 35.0 * (wx_far / 110.0).sin() + 18.0 * (wx_far / 47.0 + 1.3).sin();
                     let wx_near = x as f32 + cam * 0.5;
-                    let near =
-                        330.0 + 28.0 * (wx_near / 80.0 + 0.7).sin() + 10.0 * (wx_near / 31.0).sin();
+                    let near = 330.0 + 28.0 * (wx_near / 80.0 + 0.7).sin() + 10.0 * (wx_near / 31.0).sin();
                     let yf = y as f32;
                     let c = if yf >= GROUND {
                         let wx = x as f32 + cam;
                         if yf < GROUND + 10.0 {
                             [70, 170 - ((wx as i32 / 6) % 3 * 12) as u8, 60]
                         } else {
-                            let brick = ((wx as i32).rem_euclid(48) < 2)
-                                || ((y as i32 - GROUND as i32) % 20 < 2);
+                            let brick = ((wx as i32).rem_euclid(48) < 2) || ((y as i32 - GROUND as i32) % 20 < 2);
                             if brick { [90, 60, 40] } else { [128, 88, 56] }
                         }
                     } else if yf >= near {
@@ -536,13 +468,7 @@ impl Scroller {
             };
             let cy = GROUND - rh - bounce;
             p.fill_ellipse(sx, cy, rw, rh, body);
-            p.fill_ellipse(
-                sx - rw * 0.3,
-                cy - rh * 0.5,
-                rw * 0.35,
-                rh * 0.25,
-                rgba(255, 255, 255, 90),
-            );
+            p.fill_ellipse(sx - rw * 0.3, cy - rh * 0.5, rw * 0.35, rh * 0.25, rgba(255, 255, 255, 90));
             p.fill_circle(sx - rw * 0.3, cy - rh * 0.1, rw * 0.12, rgb(20, 30, 20));
             p.fill_circle(sx + rw * 0.3, cy - rh * 0.1, rw * 0.12, rgb(20, 30, 20));
             if m.boss {
@@ -575,20 +501,8 @@ impl Scroller {
         let sx = self.px - cam;
         let feet = self.py;
         let swing = (self.walk).sin() * 5.0;
-        p.fill_rect(
-            (sx - 7.0 + swing) as i32,
-            (feet - 14.0) as i32,
-            6,
-            14,
-            rgb(60, 50, 90),
-        );
-        p.fill_rect(
-            (sx + 1.0 - swing) as i32,
-            (feet - 14.0) as i32,
-            6,
-            14,
-            rgb(60, 50, 90),
-        );
+        p.fill_rect((sx - 7.0 + swing) as i32, (feet - 14.0) as i32, 6, 14, rgb(60, 50, 90));
+        p.fill_rect((sx + 1.0 - swing) as i32, (feet - 14.0) as i32, 6, 14, rgb(60, 50, 90));
         p.fill_rounded_rect(sx - 11.0, feet - 34.0, 22.0, 22.0, 5.0, rgb(60, 110, 200));
         p.fill_circle(sx, feet - 42.0, 11.0, rgb(250, 220, 190));
         p.fill_ellipse(sx, feet - 50.0, 12.0, 6.0, rgb(120, 70, 40));
@@ -600,30 +514,11 @@ impl Scroller {
         // Damage numbers.
         for (x, y, text, until, hurt) in self.numbers.iter().filter(|n| n.3 > self.t) {
             let age = 1.0 - until.saturating_sub(self.t) as f32 / 900.0;
-            let color = if *hurt {
-                rgb(200, 120, 255)
-            } else {
-                rgb(255, 150, 40)
-            };
-            p.text_outlined(
-                x - cam - 12.0,
-                y - age * 30.0,
-                text,
-                FontStyle::bold(20.0),
-                color,
-                rgb(40, 20, 0),
-            );
+            let color = if *hurt { rgb(200, 120, 255) } else { rgb(255, 150, 40) };
+            p.text_outlined(x - cam - 12.0, y - age * 30.0, text, FontStyle::bold(20.0), color, rgb(40, 20, 0));
         }
         if self.t < self.level_up_until {
-            hud::banner(
-                &mut p,
-                sx,
-                feet - 110.0,
-                "LEVEL UP!",
-                34.0,
-                rgb(255, 220, 80),
-                rgb(90, 50, 0),
-            );
+            hud::banner(&mut p, sx, feet - 110.0, "LEVEL UP!", 34.0, rgb(255, 220, 80), rgb(90, 50, 0));
         }
     }
 
@@ -649,27 +544,9 @@ impl Scroller {
         p.gradient_rect(0, 486, WIDTH as i32, 54, rgb(34, 34, 50), rgb(14, 14, 22));
         p.fill_rect(0, 486, WIDTH as i32, 2, rgb(96, 96, 130));
         hud::label(p, 14.0, 497.0, &self.level_text(), 20.0, rgb(250, 215, 90));
-        p.text(
-            92.0,
-            501.0,
-            "Syrupfan",
-            FontStyle::bold(13.0),
-            rgb(235, 235, 245),
-        );
-        hud::bar(
-            p,
-            HP_BAR,
-            self.hp / self.max_hp(),
-            rgb(HP_COLOR[0], HP_COLOR[1], HP_COLOR[2]),
-            rgb(80, 80, 96),
-        );
-        hud::bar(
-            p,
-            MP_BAR,
-            self.mp / self.max_mp(),
-            rgb(MP_COLOR[0], MP_COLOR[1], MP_COLOR[2]),
-            rgb(80, 80, 96),
-        );
+        p.text(92.0, 501.0, "Syrupfan", FontStyle::bold(13.0), rgb(235, 235, 245));
+        hud::bar(p, HP_BAR, self.hp / self.max_hp(), rgb(HP_COLOR[0], HP_COLOR[1], HP_COLOR[2]), rgb(80, 80, 96));
+        hud::bar(p, MP_BAR, self.mp / self.max_mp(), rgb(MP_COLOR[0], MP_COLOR[1], MP_COLOR[2]), rgb(80, 80, 96));
         let small = FontStyle::bold(11.0);
         for (r, text) in [(HP_BAR, self.hp_text()), (MP_BAR, self.mp_text())] {
             p.text_outlined(
@@ -682,28 +559,10 @@ impl Scroller {
             );
         }
         hud::label(p, 690.0, 497.0, &self.exp_text(), 16.0, rgb(250, 225, 110));
-        hud::bar(
-            p,
-            EXP_BAR,
-            self.exp / 100.0,
-            rgb(EXP_COLOR[0], EXP_COLOR[1], EXP_COLOR[2]),
-            rgb(50, 50, 60),
-        );
+        hud::bar(p, EXP_BAR, self.exp / 100.0, rgb(EXP_COLOR[0], EXP_COLOR[1], EXP_COLOR[2]), rgb(50, 50, 60));
         // Minimap.
-        p.fill_rect(
-            MINIMAP.x,
-            MINIMAP.y,
-            MINIMAP.w as i32,
-            MINIMAP.h as i32,
-            rgba(16, 20, 34, 225),
-        );
-        p.fill_rect(
-            MINIMAP.x,
-            MINIMAP.y,
-            MINIMAP.w as i32,
-            20,
-            rgba(60, 70, 110, 240),
-        );
+        p.fill_rect(MINIMAP.x, MINIMAP.y, MINIMAP.w as i32, MINIMAP.h as i32, rgba(16, 20, 34, 225));
+        p.fill_rect(MINIMAP.x, MINIMAP.y, MINIMAP.w as i32, 20, rgba(60, 70, 110, 240));
         p.text(
             MINIMAP.x as f32 + 8.0,
             MINIMAP.y as f32 + 3.0,
@@ -711,24 +570,14 @@ impl Scroller {
             FontStyle::bold(13.0),
             rgb(240, 240, 255),
         );
-        let (mx0, my0, mw, mh) = (
-            MINIMAP.x as f32 + 6.0,
-            MINIMAP.y as f32 + 26.0,
-            MINIMAP.w as f32 - 12.0,
-            MINIMAP.h as f32 - 32.0,
-        );
+        let (mx0, my0, mw, mh) =
+            (MINIMAP.x as f32 + 6.0, MINIMAP.y as f32 + 26.0, MINIMAP.w as f32 - 12.0, MINIMAP.h as f32 - 32.0);
         let to_map = |x: f32, y: f32| (mx0 + x / WORLD_W * mw, my0 + (y - 200.0) / 260.0 * mh);
         let (g0, gy) = to_map(0.0, GROUND);
         p.fill_rect(g0 as i32, gy as i32, mw as i32, 2, rgb(120, 200, 110));
         for (x, y, pw) in PLATFORMS {
             let (a, b) = to_map(x, y);
-            p.fill_rect(
-                a as i32,
-                b as i32,
-                (pw / WORLD_W * mw).max(2.0) as i32,
-                2,
-                rgb(170, 140, 90),
-            );
+            p.fill_rect(a as i32, b as i32, (pw / WORLD_W * mw).max(2.0) as i32, 2, rgb(170, 140, 90));
         }
         for m in &self.mobs {
             let (a, b) = to_map(m.x, GROUND - 10.0);
@@ -736,31 +585,14 @@ impl Scroller {
                 a,
                 b,
                 if m.boss { 4.0 } else { 2.2 },
-                if m.boss {
-                    rgb(200, 90, 255)
-                } else {
-                    rgb(240, 80, 80)
-                },
+                if m.boss { rgb(200, 90, 255) } else { rgb(240, 80, 80) },
             );
         }
         let (a, b) = to_map(self.px, self.py - 10.0);
         p.fill_circle(a, b, 3.0, rgb(255, 230, 60));
-        p.stroke_rect(
-            MINIMAP.x,
-            MINIMAP.y,
-            MINIMAP.w as i32,
-            MINIMAP.h as i32,
-            2,
-            rgb(120, 130, 170),
-        );
+        p.stroke_rect(MINIMAP.x, MINIMAP.y, MINIMAP.w as i32, MINIMAP.h as i32, 2, rgb(120, 130, 170));
         // Quest tracker.
-        p.fill_rect(
-            QUEST.x,
-            QUEST.y,
-            QUEST.w as i32,
-            QUEST.h as i32,
-            rgba(0, 0, 0, 150),
-        );
+        p.fill_rect(QUEST.x, QUEST.y, QUEST.w as i32, QUEST.h as i32, rgba(0, 0, 0, 150));
         p.text(
             QUEST.x as f32 + 10.0,
             QUEST.y as f32 + 8.0,
@@ -776,13 +608,7 @@ impl Scroller {
             rgb(240, 240, 240),
         );
         // Chat.
-        p.fill_rect(
-            CHAT.x,
-            CHAT.y,
-            CHAT.w as i32,
-            CHAT.h as i32,
-            rgba(0, 0, 0, 140),
-        );
+        p.fill_rect(CHAT.x, CHAT.y, CHAT.w as i32, CHAT.h as i32, rgba(0, 0, 0, 140));
         for (i, line) in self.chat.iter().enumerate() {
             p.text(
                 CHAT.x as f32 + 6.0,
@@ -796,13 +622,7 @@ impl Scroller {
         if let Some(boss) = self.mobs.iter().find(|m| m.boss) {
             let sx = boss.x - cam;
             if (-200.0..WIDTH as f32 + 200.0).contains(&sx) {
-                p.text_centered(
-                    WIDTH as f32 / 2.0,
-                    34.0,
-                    "Mossy King",
-                    FontStyle::bold(18.0),
-                    rgb(245, 235, 255),
-                );
+                p.text_centered(WIDTH as f32 / 2.0, 34.0, "Mossy King", FontStyle::bold(18.0), rgb(245, 235, 255));
                 hud::bar(
                     p,
                     BOSS_BAR,
@@ -816,17 +636,14 @@ impl Scroller {
 
     fn boss_visible(&self) -> Option<&Mob> {
         let cam = self.cam();
-        self.mobs
-            .iter()
-            .find(|m| m.boss && (-200.0..WIDTH as f32 + 200.0).contains(&(m.x - cam)))
+        self.mobs.iter().find(|m| m.boss && (-200.0..WIDTH as f32 + 200.0).contains(&(m.x - cam)))
     }
 }
 
 impl Game for Scroller {
     fn info(&self) -> SourceInfo {
-        let mut info = SourceInfo::new(SourceKind::Window)
-            .with_title("Sky Meadow Online")
-            .with_executable("skymeadow.exe");
+        let mut info =
+            SourceInfo::new(SourceKind::Window).with_title("Sky Meadow Online").with_executable("skymeadow.exe");
         info.executable_path = Some("C:\\Program Files\\SkyMeadow\\skymeadow.exe".into());
         info
     }
@@ -854,14 +671,7 @@ impl Game for Scroller {
         match self.phase {
             Phase::Loading => {
                 let mut p = Painter::new(&mut img);
-                p.gradient_rect(
-                    0,
-                    0,
-                    WIDTH as i32,
-                    HEIGHT as i32,
-                    rgb(130, 190, 240),
-                    rgb(230, 245, 250),
-                );
+                p.gradient_rect(0, 0, WIDTH as i32, HEIGHT as i32, rgb(130, 190, 240), rgb(230, 245, 250));
                 hud::banner(
                     &mut p,
                     WIDTH as f32 / 2.0,
@@ -871,21 +681,9 @@ impl Game for Scroller {
                     rgb(255, 255, 255),
                     rgb(40, 90, 150),
                 );
-                p.text_centered(
-                    WIDTH as f32 / 2.0,
-                    260.0,
-                    "Connecting...",
-                    FontStyle::bold(20.0),
-                    rgb(40, 70, 110),
-                );
+                p.text_centered(WIDTH as f32 / 2.0, 260.0, "Connecting...", FontStyle::bold(20.0), rgb(40, 70, 110));
                 let t = (self.t as f32 / LOADING_UNTIL as f32).clamp(0.0, 1.0);
-                hud::bar(
-                    &mut p,
-                    Rect::new(280, 300, 400, 14),
-                    t,
-                    rgb(250, 200, 80),
-                    rgb(40, 70, 110),
-                );
+                hud::bar(&mut p, Rect::new(280, 300, 400, 14), t, rgb(250, 200, 80), rgb(40, 70, 110));
             }
             Phase::Play => {
                 self.draw_scene(&mut img);
@@ -898,20 +696,8 @@ impl Game for Scroller {
                 hud::veil(&mut p, rgb(0, 0, 0), 0.45);
                 let r = Rect::new(300, 190, 360, 150);
                 hud::panel(&mut p, r, rgb(245, 238, 220), rgb(120, 80, 40));
-                p.text_centered(
-                    480.0,
-                    210.0,
-                    "You have died.",
-                    FontStyle::bold(20.0),
-                    rgb(60, 40, 30),
-                );
-                p.text_centered(
-                    480.0,
-                    246.0,
-                    "Return to the nearest town?",
-                    FontStyle::bold(16.0),
-                    rgb(60, 40, 30),
-                );
+                p.text_centered(480.0, 210.0, "You have died.", FontStyle::bold(20.0), rgb(60, 40, 30));
+                p.text_centered(480.0, 246.0, "Return to the nearest town?", FontStyle::bold(16.0), rgb(60, 40, 30));
                 hud::button(&mut p, Rect::new(430, 290, 100, 34), "OK", 16.0, true);
             }
         }
@@ -921,63 +707,30 @@ impl Game for Scroller {
     fn truth(&self) -> Truth {
         let mut elements = Vec::new();
         if self.phase == Phase::Play {
-            let bar = |name: &str, concept: &str, rect: Rect, v: f32, max: f32, color: [u8; 3]| {
-                TruthElement {
-                    name: name.into(),
-                    concept: concept.into(),
-                    kind: "bar".into(),
-                    rect,
-                    value: Some(v as f64),
-                    max: Some(max as f64),
-                    text: None,
-                    color: Some(color),
-                }
-            };
-            let text = |name: &str,
-                        concept: &str,
-                        x: f32,
-                        y: f32,
-                        s: FontStyle,
-                        t: String,
-                        v: Option<f64>| TruthElement {
+            let bar = |name: &str, concept: &str, rect: Rect, v: f32, max: f32, color: [u8; 3]| TruthElement {
                 name: name.into(),
                 concept: concept.into(),
-                kind: "text".into(),
-                rect: Rect::new(
-                    x as i32,
-                    y as i32,
-                    measure(&t, s).ceil() as u32,
-                    s.line_height().ceil() as u32,
-                ),
-                value: v,
-                max: None,
-                text: Some(t),
-                color: None,
+                kind: "bar".into(),
+                rect,
+                value: Some(v as f64),
+                max: Some(max as f64),
+                text: None,
+                color: Some(color),
             };
-            elements.push(bar(
-                "hp",
-                "health",
-                HP_BAR,
-                self.hp.ceil(),
-                self.max_hp(),
-                HP_COLOR,
-            ));
-            elements.push(bar(
-                "mp",
-                "mana",
-                MP_BAR,
-                self.mp.floor(),
-                self.max_mp(),
-                MP_COLOR,
-            ));
-            elements.push(bar(
-                "exp",
-                "experience",
-                EXP_BAR,
-                self.exp,
-                100.0,
-                EXP_COLOR,
-            ));
+            let text =
+                |name: &str, concept: &str, x: f32, y: f32, s: FontStyle, t: String, v: Option<f64>| TruthElement {
+                    name: name.into(),
+                    concept: concept.into(),
+                    kind: "text".into(),
+                    rect: Rect::new(x as i32, y as i32, measure(&t, s).ceil() as u32, s.line_height().ceil() as u32),
+                    value: v,
+                    max: None,
+                    text: Some(t),
+                    color: None,
+                };
+            elements.push(bar("hp", "health", HP_BAR, self.hp.ceil(), self.max_hp(), HP_COLOR));
+            elements.push(bar("mp", "mana", MP_BAR, self.mp.floor(), self.max_mp(), MP_COLOR));
+            elements.push(bar("exp", "experience", EXP_BAR, self.exp, 100.0, EXP_COLOR));
             let small = FontStyle::bold(11.0);
             let ht = self.hp_text();
             elements.push(text(
@@ -1047,26 +800,14 @@ impl Game for Scroller {
                 color: None,
             });
             if let Some(b) = self.boss_visible() {
-                elements.push(bar(
-                    "boss",
-                    "boss_health",
-                    BOSS_BAR,
-                    b.hp as f32,
-                    b.max_hp as f32,
-                    BOSS_COLOR,
-                ));
+                elements.push(bar("boss", "boss_health", BOSS_BAR, b.hp as f32, b.max_hp as f32, BOSS_COLOR));
             }
         }
         let player = (self.phase != Phase::Loading).then(|| {
             let sx = self.px - self.cam();
             Rect::new((sx - 12.0) as i32, (self.py - 54.0) as i32, 24, 54)
         });
-        Truth {
-            t_ms: self.t,
-            scene: self.scene(),
-            elements,
-            player,
-        }
+        Truth { t_ms: self.t, scene: self.scene(), elements, player }
     }
 
     fn drain_events(&mut self) -> Vec<TruthEvent> {

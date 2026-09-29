@@ -1,0 +1,7 @@
+{
+ "parse": {
+  "title": "Sky Meadow Online",
+  "pageid": 1,
+  "text": "<div class=\"mw-parser-output\"><aside class=\"portable-infobox\"><h2>Sky Meadow Online</h2><div>Level 30</div></aside><p><b>Sky Meadow Online</b> is a free-to-play side-scrolling MMORPG set on floating islands. Players level up by defeating monsters and completing quests for the people of Mossy Hills.<sup class=\"reference\">[1]</sup></p><p>Health and mana are shown in the status bar at the bottom of the screen, above the experience bar.<sup class=\"reference\">[2]</sup></p><table class=\"wikitable\"><tr><th>Drop</th><td>Moss Crown</td></tr></table></div>"
+ }
+}

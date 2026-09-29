@@ -18,6 +18,7 @@ image = { version = "0.24", default-features = false, features = ["png", "jpeg"]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 minifb = "0.28"
+regex = "1"
 tempfile = "3"
 syrup-core = { path = "crates/syrup-core" }
 syrup-paint = { path = "crates/syrup-paint" }
@@ -60,6 +61,10 @@ unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "warn"
+# Pixel code indexes arrays and passes coordinates; these are the norm there.
+too_many_arguments = "allow"
+type_complexity = "allow"
+needless_range_loop = "allow"
 
 [profile.release]
 debug = 1

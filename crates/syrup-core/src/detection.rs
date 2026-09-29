@@ -35,11 +35,7 @@ impl<T> Detection<T> {
         }
     }
 
-    pub fn missing(
-        timestamp_ms: u64,
-        source: impl Into<String>,
-        reason: impl Into<String>,
-    ) -> Self {
+    pub fn missing(timestamp_ms: u64, source: impl Into<String>, reason: impl Into<String>) -> Self {
         Detection {
             value: None,
             confidence: Confidence::NONE,
@@ -85,14 +81,7 @@ mod tests {
         let d: Detection<f32> = Detection::missing(40, "bars", "no saturated run");
         assert!(!d.is_present());
         assert_eq!(d.failure_reason.as_deref(), Some("no saturated run"));
-        let f = Detection::found(
-            0.5f32,
-            Confidence::new(0.8),
-            40,
-            "bars",
-            Reliability::Heuristic,
-        )
-        .carried(80, 0.5);
+        let f = Detection::found(0.5f32, Confidence::new(0.8), 40, "bars", Reliability::Heuristic).carried(80, 0.5);
         assert_eq!(f.reliability, Reliability::Predicted);
         assert!((f.confidence.value() - 0.4).abs() < 1e-6);
     }

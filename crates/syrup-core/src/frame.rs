@@ -82,13 +82,7 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(index: u64, timestamp_ms: u64, image: RgbaImage, source: Arc<SourceInfo>) -> Self {
-        Frame {
-            index,
-            timestamp_ms,
-            image: Arc::new(image),
-            origin: (0, 0),
-            source,
-        }
+        Frame { index, timestamp_ms, image: Arc::new(image), origin: (0, 0), source }
     }
 
     pub fn width(&self) -> u32 {

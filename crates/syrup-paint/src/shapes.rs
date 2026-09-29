@@ -53,15 +53,7 @@ impl Painter<'_> {
     /// Top-to-bottom gradient.
     pub fn gradient_rect(&mut self, x: i32, y: i32, w: i32, h: i32, top: Color, bottom: Color) {
         for dy in 0..h.max(0) {
-            let c = lerp_color(
-                top,
-                bottom,
-                if h > 1 {
-                    dy as f32 / (h - 1) as f32
-                } else {
-                    0.0
-                },
-            );
+            let c = lerp_color(top, bottom, if h > 1 { dy as f32 / (h - 1) as f32 } else { 0.0 });
             for xx in x..x + w {
                 self.blend(xx, y + dy, c, 1.0);
             }
@@ -83,16 +75,7 @@ impl Painter<'_> {
     }
 
     /// A rounded rectangle's outline, `t` thick, centred on the box's edge inset by t/2.
-    pub fn stroke_rounded_rect(
-        &mut self,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        r: f32,
-        t: f32,
-        c: Color,
-    ) {
+    pub fn stroke_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, r: f32, t: f32, c: Color) {
         let half = t / 2.0;
         let (x0, y0) = ((x - 1.0).floor() as i32, (y - 1.0).floor() as i32);
         let (x1, y1) = ((x + w + 1.0).ceil() as i32, (y + h + 1.0).ceil() as i32);
@@ -123,10 +106,7 @@ impl Painter<'_> {
         if rx <= 0.0 || ry <= 0.0 {
             return;
         }
-        let (x0, y0) = (
-            (cx - rx - 1.0).floor() as i32,
-            (cy - ry - 1.0).floor() as i32,
-        );
+        let (x0, y0) = ((cx - rx - 1.0).floor() as i32, (cy - ry - 1.0).floor() as i32);
         let (x1, y1) = ((cx + rx + 1.0).ceil() as i32, (cy + ry + 1.0).ceil() as i32);
         let k = rx.min(ry);
         for py in y0..y1 {
@@ -160,14 +140,8 @@ impl Painter<'_> {
     /// A line `t` thick with round ends.
     pub fn line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, t: f32, c: Color) {
         let r = t / 2.0;
-        let (bx0, by0) = (
-            (x0.min(x1) - r - 1.0).floor() as i32,
-            (y0.min(y1) - r - 1.0).floor() as i32,
-        );
-        let (bx1, by1) = (
-            (x0.max(x1) + r + 1.0).ceil() as i32,
-            (y0.max(y1) + r + 1.0).ceil() as i32,
-        );
+        let (bx0, by0) = ((x0.min(x1) - r - 1.0).floor() as i32, (y0.min(y1) - r - 1.0).floor() as i32);
+        let (bx1, by1) = ((x0.max(x1) + r + 1.0).ceil() as i32, (y0.max(y1) + r + 1.0).ceil() as i32);
         let (dx, dy) = (x1 - x0, y1 - y0);
         let len2 = (dx * dx + dy * dy).max(1e-6);
         for py in by0..by1 {
@@ -211,10 +185,7 @@ impl Painter<'_> {
                 xs.sort_by(|a, b| a.total_cmp(b));
                 for pair in xs.chunks_exact(2) {
                     let (l, r) = (pair[0] - min_x as f32, pair[1] - min_x as f32);
-                    let (li, ri) = (
-                        l.floor().max(0.0) as usize,
-                        (r.floor() as usize).min(width - 1),
-                    );
+                    let (li, ri) = (l.floor().max(0.0) as usize, (r.floor() as usize).min(width - 1));
                     for (i, v) in cov.iter_mut().enumerate().take(ri + 1).skip(li) {
                         let lo = (i as f32).max(l);
                         let hi = (i as f32 + 1.0).min(r);
@@ -251,8 +222,7 @@ mod tests {
         assert!((area - std::f32::consts::PI * 400.0).abs() < 15.0, "{area}");
 
         let mut img = RgbaImage::new(64, 64);
-        Painter::new(&mut img)
-            .fill_polygon(&[(10.0, 10.0), (50.0, 10.0), (10.0, 50.0)], rgb(0, 255, 0));
+        Painter::new(&mut img).fill_polygon(&[(10.0, 10.0), (50.0, 10.0), (10.0, 50.0)], rgb(0, 255, 0));
         let area = coverage(&img);
         assert!((area - 800.0).abs() < 12.0, "{area}");
 

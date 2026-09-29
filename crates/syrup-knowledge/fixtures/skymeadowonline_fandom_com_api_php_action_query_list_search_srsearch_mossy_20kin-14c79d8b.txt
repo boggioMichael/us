@@ -1,0 +1,20 @@
+{
+ "batchcomplete": "",
+ "query": {
+  "searchinfo": {
+   "totalhits": 2
+  },
+  "search": [
+   {
+    "ns": 0,
+    "title": "Mossy King",
+    "pageid": 1
+   },
+   {
+    "ns": 0,
+    "title": "Mossy Hills",
+    "pageid": 2
+   }
+  ]
+ }
+}

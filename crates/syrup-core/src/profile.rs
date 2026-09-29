@@ -15,9 +15,7 @@ use crate::identity::HudMark;
 use crate::knowledge::KnowledgeSource;
 
 /// Syrup's hat: the one visual thing that changes from game to game.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum Hat {
     /// The original Maplesyrup cap: a white cap with the orange S under a stack of syrupy pancakes.
@@ -100,14 +98,7 @@ impl Hat {
             Hat::TacticalHelmet
         } else if has(&["stealth", "archery", "survival", "open_world"]) {
             Hat::RangerHood
-        } else if has(&[
-            "soulslike",
-            "action_rpg",
-            "hack_and_slash",
-            "dungeon",
-            "medieval",
-            "strategy",
-        ]) {
+        } else if has(&["soulslike", "action_rpg", "hack_and_slash", "dungeon", "medieval", "strategy"]) {
             Hat::KnightHelmet
         } else if has(&["rpg", "fantasy", "jrpg", "mmo", "mmorpg", "magic"]) {
             Hat::WizardHat
@@ -263,11 +254,7 @@ impl GameProfile {
 
     /// The most frequent words read on screen, most frequent first.
     pub fn top_terms(&self, n: usize) -> Vec<(&str, u64)> {
-        let mut terms: Vec<(&str, u64)> = self
-            .terminology
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.count))
-            .collect();
+        let mut terms: Vec<(&str, u64)> = self.terminology.iter().map(|(k, v)| (k.as_str(), v.count)).collect();
         terms.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
         terms.truncate(n);
         terms

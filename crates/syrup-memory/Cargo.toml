@@ -1,5 +1,6 @@
 [package]
 name = "syrup-memory"
+description = "What Syrup remembers: game profiles, session timelines, episodes, the player's data, and forgetting"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,13 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+syrup-state.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

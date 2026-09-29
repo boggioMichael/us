@@ -1,0 +1,29 @@
+{
+ "appnews": {
+  "appid": 999001,
+  "count": 3,
+  "newsitems": [
+   {
+    "gid": "3",
+    "title": "Patch 1.3.1: Mossy King rebalance",
+    "url": "https://store.steampowered.com/news/app/999001/view/3",
+    "contents": "The Mossy King now attacks every 4 seconds instead of 3. Potions now restore 45% of maximum HP.",
+    "date": 1789000000
+   },
+   {
+    "gid": "2",
+    "title": "Community spotlight: meadow art",
+    "url": "https://store.steampowered.com/news/app/999001/view/2",
+    "contents": "Look at these paintings of the meadow.",
+    "date": 1788000000
+   },
+   {
+    "gid": "1",
+    "title": "Update 1.3 is live",
+    "url": "https://store.steampowered.com/news/app/999001/view/1",
+    "contents": "The Gem Hunter quest was added. The Mossy King drops the Moss Crown more often.",
+    "date": 1786000000
+   }
+  ]
+ }
+}

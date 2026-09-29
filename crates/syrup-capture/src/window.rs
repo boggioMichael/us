@@ -135,11 +135,7 @@ fn exe_matches(w: &WindowInfo, wanted: &str) -> bool {
 }
 
 /// The window the selector means, among `windows`.
-pub fn pick_window(
-    windows: &[WindowInfo],
-    selector: &WindowSelector,
-    own_pid: u32,
-) -> Option<WindowInfo> {
+pub fn pick_window(windows: &[WindowInfo], selector: &WindowSelector, own_pid: u32) -> Option<WindowInfo> {
     match selector {
         WindowSelector::Title(t) => {
             let t = t.to_lowercase();
@@ -149,24 +145,15 @@ pub fn pick_window(
                 .max_by_key(|w| (w.foreground, w.client.area()))
                 .cloned()
         }
-        WindowSelector::Executable(e) => windows
-            .iter()
-            .filter(|w| exe_matches(w, e))
-            .max_by_key(|w| (w.foreground, w.client.area()))
-            .cloned(),
+        WindowSelector::Executable(e) => {
+            windows.iter().filter(|w| exe_matches(w, e)).max_by_key(|w| (w.foreground, w.client.area())).cloned()
+        }
         WindowSelector::Handle(h) => windows.iter().find(|w| w.handle == *h).cloned(),
         WindowSelector::Auto => {
-            if let Some(front) = windows
-                .iter()
-                .find(|w| w.foreground && !is_excluded(w, own_pid) && !w.minimized)
-            {
+            if let Some(front) = windows.iter().find(|w| w.foreground && !is_excluded(w, own_pid) && !w.minimized) {
                 return Some(front.clone());
             }
-            windows
-                .iter()
-                .filter(|w| !is_excluded(w, own_pid) && !w.minimized)
-                .max_by_key(|w| w.client.area())
-                .cloned()
+            windows.iter().filter(|w| !is_excluded(w, own_pid) && !w.minimized).max_by_key(|w| w.client.area()).cloned()
         }
     }
 }
@@ -205,9 +192,7 @@ impl WindowSource {
         #[cfg(not(windows))]
         {
             let _ = (selector, fps);
-            Err(CaptureError::Unsupported(
-                "live window capture needs Windows; use a recording instead".into(),
-            ))
+            Err(CaptureError::Unsupported("live window capture needs Windows; use a recording instead".into()))
         }
         #[cfg(windows)]
         {
@@ -242,20 +227,13 @@ impl WindowSource {
         let now = Instant::now();
         self.last_resolve = Some(now);
         let windows = list_windows();
-        let still_there = self
-            .current
-            .as_ref()
-            .and_then(|c| windows.iter().find(|w| w.handle == c.handle).cloned());
+        let still_there = self.current.as_ref().and_then(|c| windows.iter().find(|w| w.handle == c.handle).cloned());
         let picked = pick_window(&windows, &self.selector, self.own_pid);
         let next = match (&self.selector, still_there, picked) {
-            (WindowSelector::Auto, Some(current), Some(front))
-                if front.handle != current.handle =>
-            {
+            (WindowSelector::Auto, Some(current), Some(front)) if front.handle != current.handle => {
                 // Switch only when the other window has stayed in front for a while.
                 match self.challenger {
-                    Some((h, since))
-                        if h == front.handle && now.duration_since(since).as_secs_f32() >= 2.0 =>
-                    {
+                    Some((h, since)) if h == front.handle && now.duration_since(since).as_secs_f32() >= 2.0 => {
                         self.challenger = None;
                         Some(front)
                     }
@@ -272,14 +250,11 @@ impl WindowSource {
             }
             (_, None, picked) => picked,
         };
-        let changed = next.as_ref().map(|w| (w.handle, &w.title))
-            != self.current.as_ref().map(|w| (w.handle, &w.title));
+        let changed =
+            next.as_ref().map(|w| (w.handle, &w.title)) != self.current.as_ref().map(|w| (w.handle, &w.title));
         if changed {
-            self.info = Arc::new(
-                next.as_ref()
-                    .map(|w| w.source_info())
-                    .unwrap_or_else(|| SourceInfo::new(SourceKind::Window)),
-            );
+            self.info =
+                Arc::new(next.as_ref().map(|w| w.source_info()).unwrap_or_else(|| SourceInfo::new(SourceKind::Window)));
         }
         self.current = next;
     }
@@ -291,17 +266,12 @@ impl FrameSource for WindowSource {
     }
 
     fn next(&mut self) -> Result<Capture, CaptureError> {
-        let due = self
-            .last_resolve
-            .is_none_or(|t| t.elapsed().as_millis() >= 1000);
+        let due = self.last_resolve.is_none_or(|t| t.elapsed().as_millis() >= 1000);
         if due || self.current.is_none() {
             self.resolve();
         }
         let Some(window) = self.current.clone() else {
-            return Ok(Capture::Waiting(format!(
-                "looking for {}",
-                self.selector.describe()
-            )));
+            return Ok(Capture::Waiting(format!("looking for {}", self.selector.describe())));
         };
         if window.minimized {
             return Ok(Capture::Waiting(format!("{} is minimised", window.title)));
@@ -318,18 +288,13 @@ impl FrameSource for WindowSource {
                 }
                 None => {
                     self.current = None;
-                    Ok(Capture::Waiting(format!(
-                        "could not capture {}",
-                        window.title
-                    )))
+                    Ok(Capture::Waiting(format!("could not capture {}", window.title)))
                 }
             }
         }
         #[cfg(not(windows))]
         {
-            Err(CaptureError::Unsupported(
-                "live window capture needs Windows".into(),
-            ))
+            Err(CaptureError::Unsupported("live window capture needs Windows".into()))
         }
     }
 
@@ -354,9 +319,7 @@ impl ScreenSource {
         #[cfg(not(windows))]
         {
             let _ = fps;
-            Err(CaptureError::Unsupported(
-                "live screen capture needs Windows; use a recording instead".into(),
-            ))
+            Err(CaptureError::Unsupported("live screen capture needs Windows; use a recording instead".into()))
         }
         #[cfg(windows)]
         {
@@ -393,9 +356,7 @@ impl FrameSource for ScreenSource {
         }
         #[cfg(not(windows))]
         {
-            Err(CaptureError::Unsupported(
-                "live screen capture needs Windows".into(),
-            ))
+            Err(CaptureError::Unsupported("live screen capture needs Windows".into()))
         }
     }
 
@@ -437,21 +398,9 @@ mod tests {
             win(4, "Discord", "Discord.exe", false, 1200, 800),
         ];
         // The terminal is in front but is not a game: the biggest game-like window wins.
-        assert_eq!(
-            pick_window(&windows, &WindowSelector::Auto, 0)
-                .unwrap()
-                .handle,
-            3
-        );
+        assert_eq!(pick_window(&windows, &WindowSelector::Auto, 0).unwrap().handle, 3);
         let mut w = windows.clone();
-        w.push(win(
-            5,
-            "Hollow Knight",
-            "hollow_knight.exe",
-            true,
-            1280,
-            720,
-        ));
+        w.push(win(5, "Hollow Knight", "hollow_knight.exe", true, 1280, 720));
         w[1].foreground = false;
         assert_eq!(pick_window(&w, &WindowSelector::Auto, 0).unwrap().handle, 5);
         // Syrup's own process is never picked.
@@ -464,32 +413,9 @@ mod tests {
             win(1, "MapleStory", "MapleStory.exe", false, 1366, 768),
             win(2, "Notes", "notepad.exe", true, 800, 600),
         ];
-        assert_eq!(
-            pick_window(&windows, &WindowSelector::Title("maple".into()), 0)
-                .unwrap()
-                .handle,
-            1
-        );
-        assert_eq!(
-            pick_window(
-                &windows,
-                &WindowSelector::Executable("maplestory".into()),
-                0
-            )
-            .unwrap()
-            .handle,
-            1
-        );
-        assert_eq!(
-            pick_window(
-                &windows,
-                &WindowSelector::Executable("MAPLESTORY.EXE".into()),
-                0
-            )
-            .unwrap()
-            .handle,
-            1
-        );
+        assert_eq!(pick_window(&windows, &WindowSelector::Title("maple".into()), 0).unwrap().handle, 1);
+        assert_eq!(pick_window(&windows, &WindowSelector::Executable("maplestory".into()), 0).unwrap().handle, 1);
+        assert_eq!(pick_window(&windows, &WindowSelector::Executable("MAPLESTORY.EXE".into()), 0).unwrap().handle, 1);
         assert!(pick_window(&windows, &WindowSelector::Title("zelda".into()), 0).is_none());
         assert!(is_excluded(&win(9, "tiny", "game.exe", false, 100, 80), 0));
     }

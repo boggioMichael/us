@@ -1,5 +1,6 @@
 [package]
 name = "syrup-knowledge"
+description = "Game knowledge with provenance: a knowledge graph, facts tied to sources and versions, and a research agent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,12 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

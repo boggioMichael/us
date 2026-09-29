@@ -51,12 +51,7 @@ fn best_shift(cur: &[f32], prev: &[f32], range: i32) -> i32 {
 
 impl MotionTracker {
     pub fn new() -> Self {
-        MotionTracker {
-            prev: Vec::new(),
-            size: (0, 0),
-            tracker: ObjectTracker::new(10.0, 3),
-            camera: (0, 0),
-        }
+        MotionTracker { prev: Vec::new(), size: (0, 0), tracker: ObjectTracker::new(10.0, 3), camera: (0, 0) }
     }
 
     /// Moving things in this frame (frame coordinates), ignoring changes on the
@@ -118,9 +113,7 @@ impl MotionTracker {
                 if px < 0 || px >= w as i32 || mask[y * w + x] {
                     continue;
                 }
-                let d = (work.luma[y * w + x] as i32
-                    - self.prev[py as usize * w + px as usize] as i32)
-                    .abs();
+                let d = (work.luma[y * w + x] as i32 - self.prev[py as usize * w + px as usize] as i32).abs();
                 if d > 30 {
                     cells[(y / CELL) * gw + x / CELL] += 1;
                     moved += 1;
@@ -131,10 +124,8 @@ impl MotionTracker {
         let on: Vec<bool> = cells.iter().map(|c| *c >= 2).collect();
         let comps = crate::stability::cell_components(gw, gh, &on, 2);
         let frame_cells = (gw * gh) as f32;
-        let boxes: Vec<(usize, usize, usize, usize)> = comps
-            .into_iter()
-            .filter(|(_, _, cw, ch)| ((cw * ch) as f32) < frame_cells * 0.25)
-            .collect();
+        let boxes: Vec<(usize, usize, usize, usize)> =
+            comps.into_iter().filter(|(_, _, cw, ch)| ((cw * ch) as f32) < frame_cells * 0.25).collect();
         let detections: Vec<(f32, f32, f32, f32)> = boxes
             .iter()
             .map(|(x, y, bw, bh)| {
@@ -150,30 +141,20 @@ impl MotionTracker {
         let mut objects = Vec::new();
         for t in tracks.iter() {
             let (bw, bh) = (t.width.max(1.0), t.height.max(1.0));
-            let (x0, y0) = (
-                (t.position.x - bw / 2.0).max(0.0),
-                (t.position.y - bh / 2.0).max(0.0),
-            );
+            let (x0, y0) = ((t.position.x - bw / 2.0).max(0.0), (t.position.y - bh / 2.0).max(0.0));
             let rect = Rect::new(
                 (x0 * work.scale) as i32,
                 (y0 * work.scale) as i32,
                 (bw * work.scale) as u32,
                 (bh * work.scale) as u32,
             );
-            let (cx, cy) = (
-                (t.position.x as usize).min(w - 1),
-                (t.position.y as usize).min(h - 1),
-            );
+            let (cx, cy) = ((t.position.x as usize).min(w - 1), (t.position.y as usize).min(h - 1));
             let c = work.rgb[cy * w + cx];
-            let conf = (0.3 + 0.05 * t.age_frames.min(10) as f32)
-                * if t.is_predicted() { 0.6 } else { 1.0 };
+            let conf = (0.3 + 0.05 * t.age_frames.min(10) as f32) * if t.is_predicted() { 0.6 } else { 1.0 };
             objects.push(ObservedObject {
                 id: t.id,
                 rect,
-                velocity: (
-                    (t.velocity.x + dx as f32) * work.scale,
-                    (t.velocity.y + dy as f32) * work.scale,
-                ),
+                velocity: ((t.velocity.x + dx as f32) * work.scale, (t.velocity.y + dy as f32) * work.scale),
                 age_frames: t.age_frames,
                 predicted: t.is_predicted(),
                 confidence: Confidence::new(conf),
@@ -199,17 +180,11 @@ fn characters(objects: &[ObservedObject], fw: f32, fh: f32) -> Vec<CharacterHypo
         let central = 1.0 - ((cx / fw - 0.5).abs() * 2.0).min(1.0);
         let vertical = 1.0 - ((cy / fh - 0.55).abs() * 2.0).min(1.0);
         let size = o.rect.h as f32 / fh;
-        let sized = if (0.04..0.35).contains(&size) {
-            1.0
-        } else {
-            0.4
-        };
+        let sized = if (0.04..0.35).contains(&size) { 1.0 } else { 0.4 };
         central * (0.5 + 0.5 * vertical) * sized * (o.age_frames.min(20) as f32 / 20.0)
     };
-    let best = objects
-        .iter()
-        .filter(|o| o.age_frames >= 4 && !o.predicted)
-        .max_by(|a, b| score(a).total_cmp(&score(b)));
+    let best =
+        objects.iter().filter(|o| o.age_frames >= 4 && !o.predicted).max_by(|a, b| score(a).total_cmp(&score(b)));
     let mut out = Vec::new();
     if let Some(b) = best
         && score(b) > 0.25
@@ -221,10 +196,7 @@ fn characters(objects: &[ObservedObject], fw: f32, fh: f32) -> Vec<CharacterHypo
             reason: "stays near the middle, where the camera follows".into(),
         });
     }
-    for o in objects
-        .iter()
-        .filter(|o| o.age_frames >= 3 && Some(o.id) != best.map(|b| b.id))
-    {
+    for o in objects.iter().filter(|o| o.age_frames >= 3 && Some(o.id) != best.map(|b| b.id)) {
         out.push(CharacterHypothesis {
             object: o.id,
             role: CharacterRole::Other,

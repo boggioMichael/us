@@ -210,11 +210,7 @@ impl EventBus {
     /// Live copies of every event from now on.
     pub fn subscribe(&self) -> Receiver<EventRecord> {
         let (tx, rx) = channel();
-        self.inner
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .subscribers
-            .push(tx);
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).subscribers.push(tx);
         rx
     }
 
@@ -232,10 +228,7 @@ mod tests {
         let bus = EventBus::new(3);
         let rx = bus.subscribe();
         for i in 0..5 {
-            bus.publish(Event::Note {
-                ts_ms: i,
-                message: format!("{i}"),
-            });
+            bus.publish(Event::Note { ts_ms: i, message: format!("{i}") });
         }
         let kept: Vec<u64> = bus.since(0).iter().map(|r| r.seq).collect();
         assert_eq!(kept, vec![3, 4, 5]);

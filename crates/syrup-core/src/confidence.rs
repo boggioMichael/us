@@ -18,11 +18,7 @@ impl Confidence {
     pub const CERTAIN: Confidence = Confidence(1.0);
 
     pub fn new(value: f32) -> Self {
-        if value.is_nan() {
-            Confidence(0.0)
-        } else {
-            Confidence(value.clamp(0.0, 1.0))
-        }
+        if value.is_nan() { Confidence(0.0) } else { Confidence(value.clamp(0.0, 1.0)) }
     }
 
     pub fn value(self) -> f32 {
@@ -36,9 +32,7 @@ impl Confidence {
 
     /// Evidence from several sources, combined.
     pub fn combine_all(items: impl IntoIterator<Item = Confidence>) -> Confidence {
-        items
-            .into_iter()
-            .fold(Confidence::NONE, Confidence::combine)
+        items.into_iter().fold(Confidence::NONE, Confidence::combine)
     }
 
     /// Weakened, e.g. because the observation is getting old.

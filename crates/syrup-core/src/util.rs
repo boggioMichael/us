@@ -4,10 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Now, as ISO 8601 UTC (`2026-09-29T01:25:00Z`), without a date library.
 pub fn now_iso() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     iso_from_unix(secs)
 }
 
@@ -15,12 +12,7 @@ pub fn iso_from_unix(secs: u64) -> String {
     let days = (secs / 86_400) as i64;
     let rem = secs % 86_400;
     let (y, m, d) = civil_from_days(days);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60
-    )
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", rem / 3600, rem % 3600 / 60, rem % 60)
 }
 
 /// Seconds since the Unix epoch for an ISO 8601 UTC date or date-time (`2026-09-29` or `2026-09-29T01:25:00Z`).
@@ -42,10 +34,7 @@ pub fn unix_from_iso(iso: &str) -> Option<u64> {
 }
 
 pub fn unix_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 // Howard Hinnant's civil-date algorithms.
@@ -117,10 +106,7 @@ mod tests {
 
     #[test]
     fn words_normalise() {
-        assert_eq!(
-            normalize_words("  MapleStory - Zakum's Altar!! "),
-            "maplestory zakum s altar"
-        );
+        assert_eq!(normalize_words("  MapleStory - Zakum's Altar!! "), "maplestory zakum s altar");
         assert_eq!(hamming(0b1011, 0b0010), 2);
         assert_ne!(fnv64(b"a"), fnv64(b"b"));
     }

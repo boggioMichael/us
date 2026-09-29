@@ -5,19 +5,14 @@ use std::sync::Arc;
 
 use syrup_capture::{Capture, FrameSource};
 use syrup_perception::text::{NoOcr, TesseractOcr};
-use syrup_perception::{
-    FrameSampler, OcrEngine, PerceptionConfig, SamplerConfig, SceneAnalyzer, annotate, explain,
-};
+use syrup_perception::{FrameSampler, OcrEngine, PerceptionConfig, SamplerConfig, SceneAnalyzer, annotate, explain};
 use syrup_testgames::{GameKind, Session};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let what = args.first().cloned().unwrap_or_else(|| "scroller".into());
     let seconds: f32 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(20.0);
-    let out = args
-        .get(2)
-        .cloned()
-        .unwrap_or_else(|| "perceive-out".into());
+    let out = args.get(2).cloned().unwrap_or_else(|| "perceive-out".into());
     let ocr = args.get(3).is_some_and(|s| s == "ocr");
     std::fs::create_dir_all(&out).unwrap();
     let mut source: Box<dyn FrameSource> = match GameKind::parse(&what) {
@@ -34,11 +29,8 @@ fn main() {
             Box::new(src)
         }
     };
-    let engine: Arc<dyn OcrEngine> = if ocr && TesseractOcr::available() {
-        Arc::new(TesseractOcr)
-    } else {
-        Arc::new(NoOcr)
-    };
+    let engine: Arc<dyn OcrEngine> =
+        if ocr && TesseractOcr::available() { Arc::new(TesseractOcr) } else { Arc::new(NoOcr) };
     let mut analyzer = SceneAnalyzer::new(PerceptionConfig::default(), engine);
     let mut sampler = FrameSampler::new(SamplerConfig::default());
     let mut next_dump = 0u64;
@@ -50,9 +42,7 @@ fn main() {
         if f.timestamp_ms >= next_dump {
             next_dump = f.timestamp_ms + 2500;
             print!("{}", explain(&obs));
-            annotate(&f.image, &obs)
-                .save(format!("{out}/{:06}.png", f.timestamp_ms))
-                .unwrap();
+            annotate(&f.image, &obs).save(format!("{out}/{:06}.png", f.timestamp_ms)).unwrap();
         }
     }
 }

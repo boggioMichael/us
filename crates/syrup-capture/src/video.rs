@@ -37,9 +37,7 @@ pub fn probe_video(path: &Path) -> Result<VideoInfo, CaptureError> {
         .args(["-of", "default=noprint_wrappers=1"])
         .arg(path)
         .output()
-        .map_err(|e| {
-            CaptureError::Unsupported(format!("ffprobe is needed to read videos ({e})"))
-        })?;
+        .map_err(|e| CaptureError::Unsupported(format!("ffprobe is needed to read videos ({e})")))?;
     if !out.status.success() {
         return Err(CaptureError::Decode(format!(
             "{}: {}",
@@ -59,25 +57,15 @@ pub fn probe_video(path: &Path) -> Result<VideoInfo, CaptureError> {
         match key.trim() {
             "width" => width = value.trim().parse().unwrap_or(0),
             "height" => height = value.trim().parse().unwrap_or(0),
-            "avg_frame_rate" | "r_frame_rate" if fps <= 0.0 => {
-                fps = parse_rate(value.trim()).unwrap_or(0.0)
-            }
+            "avg_frame_rate" | "r_frame_rate" if fps <= 0.0 => fps = parse_rate(value.trim()).unwrap_or(0.0),
             "duration" => duration = value.trim().parse::<f32>().ok().filter(|d| *d > 0.0),
             _ => {}
         }
     }
     if width == 0 || height == 0 {
-        return Err(CaptureError::Decode(format!(
-            "{}: no video stream",
-            path.display()
-        )));
+        return Err(CaptureError::Decode(format!("{}: no video stream", path.display())));
     }
-    Ok(VideoInfo {
-        width,
-        height,
-        fps: if fps > 0.0 { fps } else { 30.0 },
-        duration_s: duration,
-    })
+    Ok(VideoInfo { width, height, fps: if fps > 0.0 { fps } else { 30.0 }, duration_s: duration })
 }
 
 fn parse_rate(s: &str) -> Option<f32> {
@@ -106,11 +94,7 @@ pub struct VideoSource {
 impl VideoSource {
     /// `fps`: frames a second to decode (default: the video's, at most 10).
     /// `max_width`: scale larger videos down to this width.
-    pub fn open(
-        path: &Path,
-        fps: Option<f32>,
-        max_width: Option<u32>,
-    ) -> Result<Self, CaptureError> {
+    pub fn open(path: &Path, fps: Option<f32>, max_width: Option<u32>) -> Result<Self, CaptureError> {
         Self::open_at(path, fps, max_width, 0.0, None)
     }
 
@@ -126,9 +110,7 @@ impl VideoSource {
             return Err(CaptureError::NotFound(path.display().to_string()));
         }
         let probe = probe_video(path)?;
-        let fps = fps
-            .unwrap_or(probe.fps.min(10.0))
-            .clamp(0.1, probe.fps.max(0.1));
+        let fps = fps.unwrap_or(probe.fps.min(10.0)).clamp(0.1, probe.fps.max(0.1));
         let (width, height) = scaled_size(probe.width, probe.height, max_width);
         let mut filter = format!("fps={fps}");
         if (width, height) != (probe.width, probe.height) {
@@ -143,28 +125,19 @@ impl VideoSource {
         if let Some(len) = length_s {
             cmd.args(["-t", &format!("{len:.3}")]);
         }
-        cmd.args([
-            "-an", "-vf", &filter, "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1",
-        ]);
+        cmd.args(["-an", "-vf", &filter, "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"]);
         let mut child = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|e| {
-                CaptureError::Unsupported(format!("ffmpeg is needed to read videos ({e})"))
-            })?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| CaptureError::Failed("ffmpeg has no output".into()))?;
+            .map_err(|e| CaptureError::Unsupported(format!("ffmpeg is needed to read videos ({e})")))?;
+        let stdout = child.stdout.take().ok_or_else(|| CaptureError::Failed("ffmpeg has no output".into()))?;
         let playable = match (probe.duration_s, length_s) {
             (Some(d), Some(l)) => Some((d - start_s).min(l)),
             (Some(d), None) => Some(d - start_s),
             (None, l) => l,
         };
-        let total = playable
-            .filter(|s| *s > 0.0)
-            .map(|s| (s * fps).floor() as u64);
+        let total = playable.filter(|s| *s > 0.0).map(|s| (s * fps).floor() as u64);
         let mut info = SourceInfo::new(SourceKind::Video);
         info.path = Some(path.display().to_string());
         info.window_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
@@ -265,10 +238,7 @@ mod tests {
 
     #[test]
     fn rates_and_sizes() {
-        assert_eq!(
-            parse_rate("30000/1001").map(|r| (r * 100.0).round()),
-            Some(2997.0)
-        );
+        assert_eq!(parse_rate("30000/1001").map(|r| (r * 100.0).round()), Some(2997.0));
         assert_eq!(parse_rate("0/0"), None);
         assert_eq!(parse_rate("25"), Some(25.0));
         assert_eq!(scaled_size(1920, 1080, Some(1280)), (1280, 720));

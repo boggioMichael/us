@@ -28,46 +28,17 @@ pub fn annotate(frame: &RgbaImage, obs: &Observation) -> RgbaImage {
             UiKind::Bar { fill, .. } => format!("#{} bar {:.0}%", r.id, fill * 100.0),
             k => format!("#{} {}", r.id, k.word()),
         };
-        let y = if r.rect.y > 14 {
-            r.rect.y as f32 - 13.0
-        } else {
-            r.rect.bottom() as f32 + 1.0
-        };
+        let y = if r.rect.y > 14 { r.rect.y as f32 - 13.0 } else { r.rect.bottom() as f32 + 1.0 };
         p.text_outlined(r.rect.x as f32, y, &label, small, c, rgb(0, 0, 0));
     }
     for t in &obs.text {
-        p.stroke_rect(
-            t.rect.x,
-            t.rect.y,
-            t.rect.w as i32,
-            t.rect.h as i32,
-            1,
-            rgba(255, 255, 255, 200),
-        );
+        p.stroke_rect(t.rect.x, t.rect.y, t.rect.w as i32, t.rect.h as i32, 1, rgba(255, 255, 255, 200));
     }
     for o in &obs.objects {
-        p.stroke_rect(
-            o.rect.x,
-            o.rect.y,
-            o.rect.w as i32,
-            o.rect.h as i32,
-            1,
-            rgba(255, 0, 255, 220),
-        );
+        p.stroke_rect(o.rect.x, o.rect.y, o.rect.w as i32, o.rect.h as i32, 1, rgba(255, 0, 255, 220));
     }
-    let head = format!(
-        "{} {:.0}%  {}",
-        obs.scene.kind.word(),
-        obs.scene.confidence.value() * 100.0,
-        obs.scene.reason
-    );
-    p.fill_rect(
-        0,
-        0,
-        (syrup_paint::measure(&head, small) + 12.0) as i32,
-        17,
-        rgba(0, 0, 0, 180),
-    );
+    let head = format!("{} {:.0}%  {}", obs.scene.kind.word(), obs.scene.confidence.value() * 100.0, obs.scene.reason);
+    p.fill_rect(0, 0, (syrup_paint::measure(&head, small) + 12.0) as i32, 17, rgba(0, 0, 0, 180));
     p.text(6.0, 2.0, &head, small, rgb(255, 255, 255));
     img
 }
@@ -97,32 +68,20 @@ pub fn explain(obs: &Observation) -> String {
             }
             k => k.word().to_string(),
         };
-        let labels: Vec<String> = obs
-            .labels_of(r.id)
-            .iter()
-            .map(|t| format!("\"{}\"", t.text))
-            .collect();
+        let labels: Vec<String> = obs.labels_of(r.id).iter().map(|t| format!("\"{}\"", t.text)).collect();
         out.push_str(&format!(
             "  region #{} at {} {:?}: {}{} (stability {:.2}, {})\n",
             r.id,
             r.norm.place(),
             (r.rect.x, r.rect.y, r.rect.w, r.rect.h),
             what,
-            if labels.is_empty() {
-                String::new()
-            } else {
-                format!(", text {}", labels.join(" "))
-            },
+            if labels.is_empty() { String::new() } else { format!(", text {}", labels.join(" ")) },
             r.stability,
             r.confidence
         ));
     }
-    let loose: Vec<String> = obs
-        .text
-        .iter()
-        .filter(|t| t.region.is_none())
-        .map(|t| format!("\"{}\"", t.text))
-        .collect();
+    let loose: Vec<String> =
+        obs.text.iter().filter(|t| t.region.is_none()).map(|t| format!("\"{}\"", t.text)).collect();
     if !loose.is_empty() {
         out.push_str(&format!("  text: {}\n", loose.join(", ")));
     }
@@ -130,10 +89,7 @@ pub fn explain(obs: &Observation) -> String {
         out.push_str(&format!("  {} moving things\n", obs.objects.len()));
     }
     for e in &obs.events {
-        out.push_str(&format!(
-            "  event: {}\n",
-            serde_json::to_string(e).unwrap_or_default()
-        ));
+        out.push_str(&format!("  event: {}\n", serde_json::to_string(e).unwrap_or_default()));
     }
     for u in &obs.uncertainties {
         out.push_str(&format!("  unsure about {}: {}\n", u.about, u.reason));

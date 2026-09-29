@@ -25,22 +25,13 @@ impl MemorySource {
             }
             _ => 10.0,
         };
-        MemorySource {
-            frames: frames.into(),
-            index: 0,
-            fps,
-            info: Arc::new(info),
-        }
+        MemorySource { frames: frames.into(), index: 0, fps, info: Arc::new(info) }
     }
 
     /// Evenly spaced frames.
     pub fn at_fps(images: Vec<RgbaImage>, fps: f32) -> Self {
         let step = 1000.0 / fps.max(0.01);
-        let frames = images
-            .into_iter()
-            .enumerate()
-            .map(|(i, img)| ((i as f32 * step).round() as u64, img))
-            .collect();
+        let frames = images.into_iter().enumerate().map(|(i, img)| ((i as f32 * step).round() as u64, img)).collect();
         let mut s = MemorySource::new(frames, SourceInfo::new(SourceKind::Images));
         s.fps = fps;
         s

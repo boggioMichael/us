@@ -30,8 +30,7 @@ pub use memory::MemorySource;
 use syrup_core::{Frame, SourceInfo};
 pub use video::{VideoInfo, VideoSource, probe_video};
 pub use window::{
-    ScreenSource, WindowInfo, WindowSelector, WindowSource, init_process, is_excluded,
-    list_windows, pick_window,
+    ScreenSource, WindowInfo, WindowSelector, WindowSource, init_process, is_excluded, list_windows, pick_window,
 };
 
 /// What a source had for us this time.
@@ -124,11 +123,7 @@ pub fn open_recording(
     if path.is_dir() {
         return Ok(Box::new(FolderSource::open(path, fps.unwrap_or(2.0))?));
     }
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     if matches!(ext.as_str(), "png" | "jpg" | "jpeg") {
         return Ok(Box::new(FolderSource::single(path)?));
     }

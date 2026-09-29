@@ -13,9 +13,7 @@ use crate::confidence::Confidence;
 use crate::geometry::{NormRect, Rect};
 
 /// What kind of screen this is.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum SceneKind {
     #[default]
@@ -97,11 +95,7 @@ pub struct TextItem {
 #[serde(rename_all = "snake_case")]
 pub enum UiKind {
     /// A bar: how full, of what colour, which way it fills.
-    Bar {
-        fill: f32,
-        color: [u8; 3],
-        vertical: bool,
-    },
+    Bar { fill: f32, color: [u8; 3], vertical: bool },
     /// A roughly square panel near an edge whose inside keeps changing a little.
     Minimap,
     /// A panel of text lines (chat, log, objectives).
@@ -252,13 +246,8 @@ impl SceneSignature {
     /// 0 (identical) to 1 (nothing alike).
     pub fn distance(&self, other: &SceneSignature) -> f32 {
         let bits = (self.hash ^ other.hash).count_ones() as f32 / 64.0;
-        let hist: f32 = self
-            .histogram
-            .iter()
-            .zip(other.histogram.iter())
-            .map(|(a, b)| (a - b).abs())
-            .sum::<f32>()
-            / 2.0;
+        let hist: f32 =
+            self.histogram.iter().zip(other.histogram.iter()).map(|(a, b)| (a - b).abs()).sum::<f32>() / 2.0;
         (0.5 * bits + 0.5 * hist).clamp(0.0, 1.0)
     }
 }
@@ -290,11 +279,7 @@ impl Observation {
 
     /// All text read on screen, joined, lower case (for keyword checks).
     pub fn all_text_lower(&self) -> String {
-        self.text
-            .iter()
-            .map(|t| t.text.to_lowercase())
-            .collect::<Vec<_>>()
-            .join(" \n")
+        self.text.iter().map(|t| t.text.to_lowercase()).collect::<Vec<_>>().join(" \n")
     }
 
     /// Text items labelling (or inside) a region.
@@ -303,8 +288,7 @@ impl Observation {
             .relationships
             .iter()
             .filter(|r| {
-                r.to == ElementRef::Region(region)
-                    && matches!(r.rel, RelationKind::Labels | RelationKind::Inside)
+                r.to == ElementRef::Region(region) && matches!(r.rel, RelationKind::Labels | RelationKind::Inside)
             })
             .filter_map(|r| match r.from {
                 ElementRef::Text(i) => self.text.get(i),
@@ -320,9 +304,6 @@ impl Observation {
     }
 
     pub fn uncertain(&mut self, about: impl Into<String>, reason: impl Into<String>) {
-        self.uncertainties.push(Uncertainty {
-            about: about.into(),
-            reason: reason.into(),
-        });
+        self.uncertainties.push(Uncertainty { about: about.into(), reason: reason.into() });
     }
 }

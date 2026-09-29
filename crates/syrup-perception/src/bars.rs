@@ -105,11 +105,7 @@ pub fn find_bars(img: &RgbaImage) -> Vec<BarCandidate> {
                 xx += 1;
             }
             if end + 1 - start >= min_len {
-                runs.push(Run {
-                    x0: start,
-                    x1: end,
-                    hue: hsum / n,
-                });
+                runs.push(Run { x0: start, x1: end, hue: hsum / n });
             }
             x = end + 1;
         }
@@ -121,9 +117,7 @@ pub fn find_bars(img: &RgbaImage) -> Vec<BarCandidate> {
             let len = r.x1 + 1 - r.x0;
             let target = open.iter().position(|g| {
                 let ov = (r.x1.min(g.x1) as i64 - r.x0.max(g.x0) as i64 + 1).max(0) as usize;
-                y <= g.last_y + 2
-                    && ov * 2 >= len
-                    && hue_distance(r.hue, g.hue_sum / g.hue_n) <= 20.0
+                y <= g.last_y + 2 && ov * 2 >= len && hue_distance(r.hue, g.hue_sum / g.hue_n) <= 20.0
             });
             let mid = px((r.x0 + r.x1) / 2, y);
             match target {
@@ -182,12 +176,7 @@ pub fn find_bars(img: &RgbaImage) -> Vec<BarCandidate> {
         {
             continue;
         }
-        let fill = Rect::new(
-            (g.x0 * k) as i32,
-            (g.y0 * k) as i32,
-            (gw * k) as u32,
-            (gh * k) as u32,
-        );
+        let fill = Rect::new((g.x0 * k) as i32, (g.y0 * k) as i32, (gw * k) as u32, (gh * k) as u32);
         let color = [
             (g.color_sum[0] / g.color_n) as u8,
             (g.color_sum[1] / g.color_n) as u8,
@@ -208,9 +197,7 @@ pub fn find_bars(img: &RgbaImage) -> Vec<BarCandidate> {
     let mut kept: Vec<BarCandidate> = Vec::new();
     for b in out {
         if !kept.iter().any(|k| {
-            k.container
-                .intersection(&b.container)
-                .is_some_and(|i| i.area() as f32 >= b.container.area() as f32 * 0.5)
+            k.container.intersection(&b.container).is_some_and(|i| i.area() as f32 >= b.container.area() as f32 * 0.5)
         }) {
             kept.push(b);
         }
@@ -229,8 +216,7 @@ fn solid(img: &RgbaImage, fill: Rect, fill_hue: f32) -> bool {
         let mut x = fill.x;
         while x < fill.right() {
             let p = img.get_pixel(x as u32, y as u32).0;
-            good +=
-                (vivid(&p[..3]) && hue_distance(hue(p[0], p[1], p[2]), fill_hue) <= 24.0) as u32;
+            good += (vivid(&p[..3]) && hue_distance(hue(p[0], p[1], p[2]), fill_hue) <= 24.0) as u32;
             n += 1;
             x += sx;
         }
@@ -289,17 +275,13 @@ fn column(img: &RgbaImage, x: i32, y0: i32, y1: i32) -> [u8; 3] {
 /// printed on the track is the minority).
 fn typical(img: &RgbaImage, x: i32, dir: i32, n: i32, y0: i32, y1: i32) -> Option<[u8; 3]> {
     let fw = img.width() as i32;
-    let cols: Vec<[u8; 3]> = (0..n)
-        .map(|i| x + i * dir)
-        .filter(|x| *x >= 0 && *x < fw)
-        .map(|x| column(img, x, y0, y1))
-        .collect();
+    let cols: Vec<[u8; 3]> =
+        (0..n).map(|i| x + i * dir).filter(|x| *x >= 0 && *x < fw).map(|x| column(img, x, y0, y1)).collect();
     if cols.is_empty() {
         return None;
     }
     let key = |c: &[u8; 3]| (c[0] / 32, c[1] / 32, c[2] / 32);
-    let mut counts: std::collections::HashMap<(u8, u8, u8), (u32, [u32; 3])> =
-        std::collections::HashMap::new();
+    let mut counts: std::collections::HashMap<(u8, u8, u8), (u32, [u32; 3])> = std::collections::HashMap::new();
     for c in &cols {
         let e = counts.entry(key(c)).or_insert((0, [0; 3]));
         e.0 += 1;
@@ -307,9 +289,7 @@ fn typical(img: &RgbaImage, x: i32, dir: i32, n: i32, y0: i32, y1: i32) -> Optio
             e.1[i] += c[i] as u32;
         }
     }
-    let (_, (n, sum)) = counts
-        .into_iter()
-        .max_by_key(|(k, v)| (v.0, std::cmp::Reverse(*k)))?;
+    let (_, (n, sum)) = counts.into_iter().max_by_key(|(k, v)| (v.0, std::cmp::Reverse(*k)))?;
     Some([(sum[0] / n) as u8, (sum[1] / n) as u8, (sum[2] / n) as u8])
 }
 
@@ -317,10 +297,7 @@ fn typical(img: &RgbaImage, x: i32, dir: i32, n: i32, y0: i32, y1: i32) -> Optio
 fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, [u8; 3]) {
     let fw = img.width() as i32;
     let inset = (fill.h as i32 / 4).max(0);
-    let (y0, y1) = (
-        fill.y + inset,
-        fill.bottom() - inset.max(if fill.h > 2 { 1 } else { 0 }),
-    );
+    let (y0, y1) = (fill.y + inset, fill.bottom() - inset.max(if fill.h > 2 { 1 } else { 0 }));
     if y1 <= y0 {
         return (0, [0; 3]);
     }
@@ -340,8 +317,7 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
     };
     let track_l = luma(track[0], track[1], track[2]) as i32;
     // A track is darker than the fill, or greyer, and not the fill's colour.
-    if !(track_l <= fill_l + 10
-        || chroma(track[0], track[1], track[2]) + 30 < chroma(color[0], color[1], color[2]))
+    if !(track_l <= fill_l + 10 || chroma(track[0], track[1], track[2]) + 30 < chroma(color[0], color[1], color[2]))
         || color_distance(track, color) < 45.0
     {
         return (0, [0; 3]);
@@ -354,9 +330,7 @@ fn track_length(img: &RgbaImage, fill: Rect, color: [u8; 3], dir: i32) -> (i32, 
             color_distance([p[0], p[1], p[2]], track) > 30.0
         }
     };
-    let banded = |x: i32| {
-        (1..=4).any(|d| differs(x, fill.y - d)) && (0..4).any(|d| differs(x, fill.bottom() + d))
-    };
+    let banded = |x: i32| (1..=4).any(|d| differs(x, fill.y - d)) && (0..4).any(|d| differs(x, fill.bottom() + d));
     let max_len = (fill.w as i32 * 40).min(fw);
     let mut len = 0;
     let mut odd = 0;
@@ -382,19 +356,9 @@ fn measure_track(img: &RgbaImage, fill: Rect, color: [u8; 3], hue: f32) -> BarCa
     let (right, rc) = track_length(img, fill, color, 1);
     let (left, lc) = track_length(img, fill, color, -1);
     let (container, drains_right, track, tc) = if right >= left {
-        (
-            Rect::new(fill.x, fill.y, fill.w + right as u32, fill.h),
-            false,
-            right,
-            rc,
-        )
+        (Rect::new(fill.x, fill.y, fill.w + right as u32, fill.h), false, right, rc)
     } else {
-        (
-            Rect::new(fill.x - left, fill.y, fill.w + left as u32, fill.h),
-            true,
-            left,
-            lc,
-        )
+        (Rect::new(fill.x - left, fill.y, fill.w + left as u32, fill.h), true, left, lc)
     };
     let track_seen = track >= 3;
     let container = if track_seen { container } else { fill };
@@ -423,13 +387,7 @@ mod tests {
         p.fill_rect(102, 302, 200, 16, rgb(25, 22, 28));
         p.fill_rect(102, 302, (200.0 * fill) as i32, 16, rgb(210, 40, 40));
         // Text printed over it.
-        p.text(
-            150.0,
-            302.0,
-            "87/100",
-            syrup_paint::FontStyle::bold(13.0),
-            rgb(255, 255, 255),
-        );
+        p.text(150.0, 302.0, "87/100", syrup_paint::FontStyle::bold(13.0), rgb(255, 255, 255));
         // Noise: a small red square is not a bar.
         p.fill_rect(400, 100, 20, 20, rgb(220, 30, 30));
         img
@@ -441,17 +399,9 @@ mod tests {
             let bars = find_bars(&scene_with_bar(fill));
             assert_eq!(bars.len(), 1, "fill {fill}: {bars:?}");
             let b = &bars[0];
-            assert!(
-                (b.fraction - fill).abs() < 0.04,
-                "fill {fill}: measured {}",
-                b.fraction
-            );
+            assert!((b.fraction - fill).abs() < 0.04, "fill {fill}: measured {}", b.fraction);
             assert!(b.track_seen);
-            assert!(
-                (b.container.x - 102).abs() <= 2 && (b.container.w as i32 - 200).abs() <= 4,
-                "{:?}",
-                b.container
-            );
+            assert!((b.container.x - 102).abs() <= 2 && (b.container.w as i32 - 200).abs() <= 4, "{:?}", b.container);
             assert!(b.color[0] > 150 && b.color[1] < 90);
         }
     }
@@ -459,9 +409,7 @@ mod tests {
     #[test]
     #[ignore]
     fn debug_bar() {
-        let img = image::open(std::env::var("BAR_IMAGE").unwrap())
-            .unwrap()
-            .to_rgba8();
+        let img = image::open(std::env::var("BAR_IMAGE").unwrap()).unwrap().to_rgba8();
         for b in find_bars(&img) {
             eprintln!("{b:?}");
         }

@@ -24,27 +24,19 @@ impl FolderSource {
         let mut files: Vec<PathBuf> = std::fs::read_dir(dir)?
             .filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| {
-                p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
-                    matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg")
-                })
+                p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"))
             })
             .collect();
         if files.is_empty() {
-            return Err(CaptureError::NotFound(format!(
-                "no PNG or JPEG images in {}",
-                dir.display()
-            )));
+            return Err(CaptureError::NotFound(format!("no PNG or JPEG images in {}", dir.display())));
         }
         files.sort_by_key(|p| natural_key(p));
         let mut info = SourceInfo::new(SourceKind::Images);
         info.path = Some(dir.display().to_string());
         info.window_title = dir.file_name().map(|n| n.to_string_lossy().into_owned());
-        Ok(FolderSource {
-            files,
-            next: 0,
-            fps: fps.max(0.01),
-            info: Arc::new(info),
-        })
+        Ok(FolderSource { files, next: 0, fps: fps.max(0.01), info: Arc::new(info) })
     }
 
     pub fn single(file: &Path) -> Result<Self, CaptureError> {
@@ -54,12 +46,7 @@ impl FolderSource {
         let mut info = SourceInfo::new(SourceKind::Images);
         info.path = Some(file.display().to_string());
         info.window_title = file.file_stem().map(|n| n.to_string_lossy().into_owned());
-        Ok(FolderSource {
-            files: vec![file.to_path_buf()],
-            next: 0,
-            fps: 1.0,
-            info: Arc::new(info),
-        })
+        Ok(FolderSource { files: vec![file.to_path_buf()], next: 0, fps: 1.0, info: Arc::new(info) })
     }
 
     /// Titles the source (what recognition sees as the window title).
@@ -82,17 +69,10 @@ impl FrameSource for FolderSource {
         };
         let index = self.next as u64;
         self.next += 1;
-        let image = image::open(&path)
-            .map_err(|e| CaptureError::Decode(format!("{}: {e}", path.display())))?
-            .to_rgba8();
-        let ts = timestamp_from_name(&path)
-            .unwrap_or_else(|| (index as f64 * 1000.0 / self.fps as f64).round() as u64);
-        Ok(Capture::Frame(Frame::new(
-            index,
-            ts,
-            image,
-            self.info.clone(),
-        )))
+        let image =
+            image::open(&path).map_err(|e| CaptureError::Decode(format!("{}: {e}", path.display())))?.to_rgba8();
+        let ts = timestamp_from_name(&path).unwrap_or_else(|| (index as f64 * 1000.0 / self.fps as f64).round() as u64);
+        Ok(Capture::Frame(Frame::new(index, ts, image, self.info.clone())))
     }
 
     fn nominal_fps(&self) -> f32 {
@@ -106,10 +86,7 @@ impl FrameSource for FolderSource {
 
 /// Names sort with their numbers compared as numbers: `frame-9` before `frame-10`.
 fn natural_key(path: &Path) -> Vec<(String, u64)> {
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
+    let name = path.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let mut out = Vec::new();
     let mut text = String::new();
     let mut digits = String::new();
@@ -118,10 +95,7 @@ fn natural_key(path: &Path) -> Vec<(String, u64)> {
             digits.push(c);
         } else {
             if !digits.is_empty() {
-                out.push((
-                    std::mem::take(&mut text),
-                    digits.parse().unwrap_or(u64::MAX),
-                ));
+                out.push((std::mem::take(&mut text), digits.parse().unwrap_or(u64::MAX)));
                 digits.clear();
             }
             text.push(c);
@@ -137,21 +111,13 @@ pub(crate) fn timestamp_from_name(path: &Path) -> Option<u64> {
     let bytes = stem.as_bytes();
     // "<digits>ms"
     if let Some(pos) = stem.rfind("ms") {
-        let digits: String = stem[..pos]
-            .chars()
-            .rev()
-            .take_while(|c| c.is_ascii_digit())
-            .collect();
+        let digits: String = stem[..pos].chars().rev().take_while(|c| c.is_ascii_digit()).collect();
         if !digits.is_empty() && pos + 2 == stem.len() {
             return digits.chars().rev().collect::<String>().parse().ok();
         }
     }
     // "t<digits>" at the end
-    let digits: String = stem
-        .chars()
-        .rev()
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
+    let digits: String = stem.chars().rev().take_while(|c| c.is_ascii_digit()).collect();
     let start = bytes.len() - digits.len();
     if !digits.is_empty()
         && start > 0
@@ -174,20 +140,9 @@ mod tests {
         assert_eq!(timestamp_from_name(Path::new("shot_t300.png")), Some(300));
         assert_eq!(timestamp_from_name(Path::new("frame-0003.png")), None);
         assert_eq!(timestamp_from_name(Path::new("boost300.png")), None);
-        let mut v = vec![
-            PathBuf::from("f10.png"),
-            PathBuf::from("f9.png"),
-            PathBuf::from("f100.png"),
-        ];
+        let mut v = vec![PathBuf::from("f10.png"), PathBuf::from("f9.png"), PathBuf::from("f100.png")];
         v.sort_by_key(|p| natural_key(p));
-        assert_eq!(
-            v,
-            vec![
-                PathBuf::from("f9.png"),
-                PathBuf::from("f10.png"),
-                PathBuf::from("f100.png")
-            ]
-        );
+        assert_eq!(v, vec![PathBuf::from("f9.png"), PathBuf::from("f10.png"), PathBuf::from("f100.png")]);
     }
 
     #[test]

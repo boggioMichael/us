@@ -166,19 +166,10 @@ impl GameState {
 
     /// The fraction of a concept (health, energy...) if it is known well enough.
     pub fn fraction_of(&self, name: &str, min_confidence: f32) -> Option<f64> {
-        self.concepts
-            .get(name)
-            .filter(|c| c.confidence.at_least(min_confidence))
-            .and_then(|c| c.fraction())
+        self.concepts.get(name).filter(|c| c.confidence.at_least(min_confidence)).and_then(|c| c.fraction())
     }
 
-    pub fn happened(
-        &self,
-        kind: TransitionKind,
-        since_ms: u64,
-    ) -> impl Iterator<Item = &Transition> {
-        self.recent
-            .iter()
-            .filter(move |t| t.kind == kind && t.ts_ms >= since_ms)
+    pub fn happened(&self, kind: TransitionKind, since_ms: u64) -> impl Iterator<Item = &Transition> {
+        self.recent.iter().filter(move |t| t.kind == kind && t.ts_ms >= since_ms)
     }
 }

@@ -14,21 +14,18 @@ use syrup_core::Rect;
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, POINT, RECT};
 use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{
-    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, ClientToScreen, CreateCompatibleDC,
-    CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GdiFlush, GetDC, HBITMAP, HDC,
-    HGDIOBJ, ReleaseDC, SRCCOPY, SelectObject,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, ClientToScreen, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
+    DeleteDC, DeleteObject, GdiFlush, GetDC, HBITMAP, HDC, HGDIOBJ, ReleaseDC, SRCCOPY, SelectObject,
 };
 use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow};
 use windows::Win32::System::Threading::{
     OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
-use windows::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
-};
+use windows::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GW_OWNER, GWL_EXSTYLE, GetClassNameW, GetClientRect, GetForegroundWindow,
-    GetSystemMetrics, GetWindow, GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId,
-    IsIconic, IsWindow, IsWindowVisible, SM_CXSCREEN, SM_CYSCREEN, WS_EX_TOOLWINDOW,
+    EnumWindows, GW_OWNER, GWL_EXSTYLE, GetClassNameW, GetClientRect, GetForegroundWindow, GetSystemMetrics, GetWindow,
+    GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, SM_CXSCREEN,
+    SM_CYSCREEN, WS_EX_TOOLWINDOW,
 };
 use windows::core::{BOOL, PWSTR};
 
@@ -68,13 +65,7 @@ fn executable_path(pid: u32) -> Option<String> {
         let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut buf = vec![0u16; 1024];
         let mut size = buf.len() as u32;
-        let ok = QueryFullProcessImageNameW(
-            process,
-            PROCESS_NAME_WIN32,
-            PWSTR(buf.as_mut_ptr()),
-            &mut size,
-        )
-        .is_ok();
+        let ok = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut size).is_ok();
         let _ = CloseHandle(process);
         ok.then(|| String::from_utf16_lossy(&buf[..size as usize]))
     }
@@ -89,26 +80,14 @@ fn client_rect(window: HWND) -> Option<Rect> {
             return None;
         }
         let (w, h) = (rect.right - rect.left, rect.bottom - rect.top);
-        Some(Rect::new(
-            origin.x,
-            origin.y,
-            w.max(0) as u32,
-            h.max(0) as u32,
-        ))
+        Some(Rect::new(origin.x, origin.y, w.max(0) as u32, h.max(0) as u32))
     }
 }
 
 fn is_cloaked(window: HWND) -> bool {
     let mut cloaked: u32 = 0;
     unsafe {
-        DwmGetWindowAttribute(
-            window,
-            DWMWA_CLOAKED,
-            &mut cloaked as *mut u32 as *mut c_void,
-            4,
-        )
-        .is_ok()
-            && cloaked != 0
+        DwmGetWindowAttribute(window, DWMWA_CLOAKED, &mut cloaked as *mut u32 as *mut c_void, 4).is_ok() && cloaked != 0
     }
 }
 
@@ -117,10 +96,7 @@ fn is_cloaked(window: HWND) -> bool {
 pub fn list_windows() -> Vec<WindowInfo> {
     let mut handles: Vec<HWND> = Vec::new();
     unsafe {
-        let _ = EnumWindows(
-            Some(collect),
-            LPARAM(&mut handles as *mut Vec<HWND> as isize),
-        );
+        let _ = EnumWindows(Some(collect), LPARAM(&mut handles as *mut Vec<HWND> as isize));
     }
     let foreground = unsafe { GetForegroundWindow() };
     let mut out = Vec::new();
@@ -151,9 +127,7 @@ pub fn list_windows() -> Vec<WindowInfo> {
             let mut pid = 0u32;
             GetWindowThreadProcessId(window, Some(&mut pid));
             let path = executable_path(pid);
-            let executable = path
-                .as_ref()
-                .and_then(|p| p.rsplit(['\\', '/']).next().map(|s| s.to_string()));
+            let executable = path.as_ref().and_then(|p| p.rsplit(['\\', '/']).next().map(|s| s.to_string()));
             let minimized = IsIconic(window).as_bool();
             let client = client_rect(window).unwrap_or_default();
             out.push(WindowInfo {
@@ -319,11 +293,9 @@ impl Grabber {
         }
         let in_front = unsafe { GetForegroundWindow() } == window;
         let ok = if in_front {
-            (self.copy_from_screen(client.x, client.y) && !self.is_blank())
-                || (self.print(window) && !self.is_blank())
+            (self.copy_from_screen(client.x, client.y) && !self.is_blank()) || (self.print(window) && !self.is_blank())
         } else {
-            (self.print(window) && !self.is_blank())
-                || (self.copy_from_screen(client.x, client.y) && !self.is_blank())
+            (self.print(window) && !self.is_blank()) || (self.copy_from_screen(client.x, client.y) && !self.is_blank())
         };
         if !ok {
             return None;

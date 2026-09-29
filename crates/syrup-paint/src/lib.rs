@@ -24,12 +24,7 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
 }
 
 pub fn with_alpha(c: Color, a: f32) -> Color {
-    [
-        c[0],
-        c[1],
-        c[2],
-        (c[3] as f32 * a.clamp(0.0, 1.0)).round() as u8,
-    ]
+    [c[0], c[1], c[2], (c[3] as f32 * a.clamp(0.0, 1.0)).round() as u8]
 }
 
 /// Paints into an image, clipped to a rectangle.
@@ -41,10 +36,7 @@ pub struct Painter<'a> {
 impl<'a> Painter<'a> {
     pub fn new(img: &'a mut RgbaImage) -> Self {
         let (w, h) = img.dimensions();
-        Painter {
-            img,
-            clip: (0, 0, w as i32, h as i32),
-        }
+        Painter { img, clip: (0, 0, w as i32, h as i32) }
     }
 
     pub fn width(&self) -> u32 {
@@ -115,11 +107,7 @@ impl<'a> Painter<'a> {
                 let c = if sx > 1.5 || sy > 1.5 {
                     area_sample(src, dx as f32 * sx, dy as f32 * sy, sx, sy)
                 } else {
-                    bilinear(
-                        src,
-                        (dx as f32 + 0.5) * sx - 0.5,
-                        (dy as f32 + 0.5) * sy - 0.5,
-                    )
+                    bilinear(src, (dx as f32 + 0.5) * sx - 0.5, (dy as f32 + 0.5) * sy - 0.5)
                 };
                 self.blend(px, py, c, opacity);
             }
@@ -154,12 +142,7 @@ pub fn bilinear(src: &RgbaImage, x: f32, y: f32) -> Color {
     let (a, b, c, d) = (p(x0, y0), p(x1, y0), p(x0, y1), p(x1, y1));
     // Interpolate premultiplied, so transparent pixels do not darken edges.
     let mut acc = [0f32; 4];
-    for (px, wgt) in [
-        (a, (1.0 - fx) * (1.0 - fy)),
-        (b, fx * (1.0 - fy)),
-        (c, (1.0 - fx) * fy),
-        (d, fx * fy),
-    ] {
+    for (px, wgt) in [(a, (1.0 - fx) * (1.0 - fy)), (b, fx * (1.0 - fy)), (c, (1.0 - fx) * fy), (d, fx * fy)] {
         let al = px[3] as f32 / 255.0;
         for i in 0..3 {
             acc[i] += px[i] as f32 * al * wgt;
@@ -172,10 +155,7 @@ pub fn bilinear(src: &RgbaImage, x: f32, y: f32) -> Color {
 fn area_sample(src: &RgbaImage, x: f32, y: f32, sx: f32, sy: f32) -> Color {
     let (w, h) = (src.width() as i32, src.height() as i32);
     let (x0, y0) = (x.floor() as i32, y.floor() as i32);
-    let (x1, y1) = (
-        ((x + sx).ceil() as i32).min(w),
-        ((y + sy).ceil() as i32).min(h),
-    );
+    let (x1, y1) = (((x + sx).ceil() as i32).min(w), ((y + sy).ceil() as i32).min(h));
     let mut acc = [0f32; 4];
     let mut n = 0.0;
     for yy in y0.max(0)..y1.max(y0 + 1).min(h) {
@@ -237,11 +217,7 @@ mod tests {
         assert_eq!(img.get_pixel(1, 1).0, [128, 128, 128, 255]);
         let big = resize(&img, 8, 8);
         assert_eq!(big.dimensions(), (8, 8));
-        let small = resize(
-            &RgbaImage::from_pixel(10, 10, image::Rgba([200, 100, 0, 255])),
-            3,
-            3,
-        );
+        let small = resize(&RgbaImage::from_pixel(10, 10, image::Rgba([200, 100, 0, 255])), 3, 3);
         assert_eq!(small.get_pixel(1, 1).0, [200, 100, 0, 255]);
     }
 

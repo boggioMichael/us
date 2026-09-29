@@ -17,12 +17,7 @@ use crate::{Game, Truth, TruthElement, TruthEvent, TruthEventKind};
 pub const WIDTH: u32 = 960;
 pub const HEIGHT: u32 = 540;
 const TURN_MS: u64 = 10_000;
-const TIMER_BAR: Rect = Rect {
-    x: 780,
-    y: 46,
-    w: 160,
-    h: 10,
-};
+const TIMER_BAR: Rect = Rect { x: 780, y: 46, w: 160, h: 10 };
 const TIMER_COLOR: [u8; 3] = [240, 200, 60];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,10 +78,7 @@ impl Cards {
     }
 
     fn draw_card(&mut self) -> Card {
-        Card {
-            rank: self.rng.int(2, 14) as u8,
-            suit: self.rng.int(0, 3) as u8,
-        }
+        Card { rank: self.rng.int(2, 14) as u8, suit: self.rng.int(0, 3) as u8 }
     }
 
     fn deal(&mut self) {
@@ -119,26 +111,19 @@ impl Cards {
     fn start_turn(&mut self) {
         let think = self.rng.int(1500, 11_500) as u64;
         self.chosen = self.rng.int(0, self.hand.len() as i64 - 1) as usize;
-        self.set_phase(Phase::Turn {
-            started: self.t,
-            play_at: self.t + think,
-        });
+        self.set_phase(Phase::Turn { started: self.t, play_at: self.t + think });
     }
 
     fn seconds_left(&self) -> Option<u64> {
         match self.phase {
-            Phase::Turn { started, .. } => {
-                Some((TURN_MS.saturating_sub(self.t - started)).div_ceil(1000))
-            }
+            Phase::Turn { started, .. } => Some((TURN_MS.saturating_sub(self.t - started)).div_ceil(1000)),
             _ => None,
         }
     }
 
     fn timer_fraction(&self) -> f32 {
         match self.phase {
-            Phase::Turn { started, .. } => {
-                1.0 - ((self.t - started) as f32 / TURN_MS as f32).clamp(0.0, 1.0)
-            }
+            Phase::Turn { started, .. } => 1.0 - ((self.t - started) as f32 / TURN_MS as f32).clamp(0.0, 1.0),
             _ => 0.0,
         }
     }
@@ -156,14 +141,7 @@ impl Cards {
     }
 
     fn draw_table(&self, p: &mut Painter) {
-        p.gradient_rect(
-            0,
-            0,
-            WIDTH as i32,
-            HEIGHT as i32,
-            rgb(22, 96, 54),
-            rgb(10, 58, 32),
-        );
+        p.gradient_rect(0, 0, WIDTH as i32, HEIGHT as i32, rgb(22, 96, 54), rgb(10, 58, 32));
         p.fill_ellipse(480.0, 270.0, 330.0, 150.0, rgba(255, 255, 255, 14));
         p.stroke_circle(480.0, 270.0, 150.0, 3.0, rgba(255, 255, 255, 30));
     }
@@ -171,34 +149,12 @@ impl Cards {
     fn draw_hud(&self, p: &mut Painter) {
         hud::label(p, 20.0, 14.0, &self.score_text(), 22.0, rgb(250, 250, 250));
         let rt = self.round_text();
-        hud::label(
-            p,
-            480.0 - measure(&rt, FontStyle::bold(20.0)) / 2.0,
-            14.0,
-            &rt,
-            20.0,
-            rgb(240, 220, 150),
-        );
+        hud::label(p, 480.0 - measure(&rt, FontStyle::bold(20.0)) / 2.0, 14.0, &rt, 20.0, rgb(240, 220, 150));
         let tt = self.timer_text();
         let low = self.seconds_left().is_some_and(|s| s <= 3);
         let tw = measure(&tt, FontStyle::bold(22.0));
-        hud::label(
-            p,
-            940.0 - tw,
-            14.0,
-            &tt,
-            22.0,
-            if low {
-                rgb(255, 90, 80)
-            } else {
-                rgb(250, 250, 250)
-            },
-        );
-        let color = if low {
-            rgb(235, 70, 60)
-        } else {
-            rgb(TIMER_COLOR[0], TIMER_COLOR[1], TIMER_COLOR[2])
-        };
+        hud::label(p, 940.0 - tw, 14.0, &tt, 22.0, if low { rgb(255, 90, 80) } else { rgb(250, 250, 250) });
+        let color = if low { rgb(235, 70, 60) } else { rgb(TIMER_COLOR[0], TIMER_COLOR[1], TIMER_COLOR[2]) };
         hud::bar(p, TIMER_BAR, self.timer_fraction(), color, rgb(20, 40, 28));
     }
 
@@ -216,11 +172,7 @@ impl Cards {
 }
 
 fn suit_color(suit: u8) -> Color {
-    if suit == 1 || suit == 2 {
-        rgb(200, 30, 40)
-    } else {
-        rgb(25, 25, 30)
-    }
+    if suit == 1 || suit == 2 { rgb(200, 30, 40) } else { rgb(25, 25, 30) }
 }
 
 fn rank_text(rank: u8) -> String {
@@ -240,59 +192,23 @@ fn suit_shape(p: &mut Painter, cx: f32, cy: f32, s: f32, suit: u8) {
         0 => {
             p.fill_circle(cx - s * 0.28, cy + s * 0.05, s * 0.3, c);
             p.fill_circle(cx + s * 0.28, cy + s * 0.05, s * 0.3, c);
-            p.fill_polygon(
-                &[
-                    (cx - s * 0.56, cy - s * 0.02),
-                    (cx + s * 0.56, cy - s * 0.02),
-                    (cx, cy - s * 0.6),
-                ],
-                c,
-            );
-            p.fill_polygon(
-                &[
-                    (cx, cy + s * 0.1),
-                    (cx - s * 0.2, cy + s * 0.6),
-                    (cx + s * 0.2, cy + s * 0.6),
-                ],
-                c,
-            );
+            p.fill_polygon(&[(cx - s * 0.56, cy - s * 0.02), (cx + s * 0.56, cy - s * 0.02), (cx, cy - s * 0.6)], c);
+            p.fill_polygon(&[(cx, cy + s * 0.1), (cx - s * 0.2, cy + s * 0.6), (cx + s * 0.2, cy + s * 0.6)], c);
         }
         // Heart.
         1 => {
             p.fill_circle(cx - s * 0.28, cy - s * 0.15, s * 0.3, c);
             p.fill_circle(cx + s * 0.28, cy - s * 0.15, s * 0.3, c);
-            p.fill_polygon(
-                &[
-                    (cx - s * 0.56, cy - s * 0.08),
-                    (cx + s * 0.56, cy - s * 0.08),
-                    (cx, cy + s * 0.58),
-                ],
-                c,
-            );
+            p.fill_polygon(&[(cx - s * 0.56, cy - s * 0.08), (cx + s * 0.56, cy - s * 0.08), (cx, cy + s * 0.58)], c);
         }
         // Diamond.
-        2 => p.fill_polygon(
-            &[
-                (cx, cy - s * 0.6),
-                (cx + s * 0.42, cy),
-                (cx, cy + s * 0.6),
-                (cx - s * 0.42, cy),
-            ],
-            c,
-        ),
+        2 => p.fill_polygon(&[(cx, cy - s * 0.6), (cx + s * 0.42, cy), (cx, cy + s * 0.6), (cx - s * 0.42, cy)], c),
         // Club.
         _ => {
             p.fill_circle(cx, cy - s * 0.28, s * 0.26, c);
             p.fill_circle(cx - s * 0.3, cy + s * 0.08, s * 0.26, c);
             p.fill_circle(cx + s * 0.3, cy + s * 0.08, s * 0.26, c);
-            p.fill_polygon(
-                &[
-                    (cx, cy),
-                    (cx - s * 0.18, cy + s * 0.6),
-                    (cx + s * 0.18, cy + s * 0.6),
-                ],
-                c,
-            );
+            p.fill_polygon(&[(cx, cy), (cx - s * 0.18, cy + s * 0.6), (cx + s * 0.18, cy + s * 0.6)], c);
         }
     }
 }
@@ -301,13 +217,7 @@ fn card_face(p: &mut Painter, x: f32, y: f32, c: Card) {
     p.fill_rounded_rect(x + 3.0, y + 4.0, 64.0, 92.0, 7.0, rgba(0, 0, 0, 90));
     p.fill_rounded_rect(x, y, 64.0, 92.0, 7.0, rgb(250, 248, 240));
     p.stroke_rounded_rect(x, y, 64.0, 92.0, 7.0, 1.5, rgb(160, 150, 140));
-    p.text(
-        x + 6.0,
-        y + 4.0,
-        &rank_text(c.rank),
-        FontStyle::bold(20.0),
-        suit_color(c.suit),
-    );
+    p.text(x + 6.0, y + 4.0, &rank_text(c.rank), FontStyle::bold(20.0), suit_color(c.suit));
     suit_shape(p, x + 32.0, y + 56.0, 24.0, c.suit);
 }
 
@@ -315,23 +225,14 @@ fn card_back(p: &mut Painter, x: f32, y: f32) {
     p.fill_rounded_rect(x, y, 64.0, 92.0, 7.0, rgb(250, 248, 240));
     p.fill_rounded_rect(x + 4.0, y + 4.0, 56.0, 84.0, 5.0, rgb(160, 40, 50));
     for i in 0..5 {
-        p.stroke_circle(
-            x + 32.0,
-            y + 46.0,
-            6.0 + i as f32 * 6.0,
-            1.2,
-            rgba(255, 220, 200, 90),
-        );
+        p.stroke_circle(x + 32.0, y + 46.0, 6.0 + i as f32 * 6.0, 1.2, rgba(255, 220, 200, 90));
     }
 }
 
 impl Game for Cards {
     fn info(&self) -> SourceInfo {
-        let mut info = SourceInfo::new(SourceKind::Window)
-            .with_title("High Card Duel")
-            .with_executable("highcard.exe");
-        info.executable_path =
-            Some("D:\\SteamLibrary\\steamapps\\common\\High Card Duel\\highcard.exe".into());
+        let mut info = SourceInfo::new(SourceKind::Window).with_title("High Card Duel").with_executable("highcard.exe");
+        info.executable_path = Some("D:\\SteamLibrary\\steamapps\\common\\High Card Duel\\highcard.exe".into());
         info
     }
 
@@ -381,23 +282,14 @@ impl Game for Cards {
             Phase::Reveal { until, .. } if self.t >= until => {
                 if self.score.0 >= 3 || self.score.1 >= 3 {
                     let won = self.score.0 >= 3;
-                    self.emit(if won {
-                        TruthEventKind::Victory
-                    } else {
-                        TruthEventKind::Defeat
-                    });
-                    self.set_phase(Phase::End {
-                        until: self.t + 4000,
-                        won,
-                    });
+                    self.emit(if won { TruthEventKind::Victory } else { TruthEventKind::Defeat });
+                    self.set_phase(Phase::End { until: self.t + 4000, won });
                 } else {
                     self.round += 1;
                     self.start_turn();
                 }
             }
-            Phase::End { until, .. } if self.t >= until => self.set_phase(Phase::Menu {
-                until: self.t + 3000,
-            }),
+            Phase::End { until, .. } if self.t >= until => self.set_phase(Phase::Menu { until: self.t + 3000 }),
             _ => {}
         }
     }
@@ -408,49 +300,18 @@ impl Game for Cards {
         self.draw_table(&mut p);
         match self.phase {
             Phase::Menu { .. } => {
-                hud::banner(
-                    &mut p,
-                    480.0,
-                    90.0,
-                    "HIGH CARD DUEL",
-                    48.0,
-                    rgb(250, 240, 220),
-                    rgb(20, 50, 30),
-                );
+                hud::banner(&mut p, 480.0, 90.0, "HIGH CARD DUEL", 48.0, rgb(250, 240, 220), rgb(20, 50, 30));
                 for (i, label) in ["PLAY", "RULES", "QUIT"].iter().enumerate() {
-                    hud::button(
-                        &mut p,
-                        Rect::new(380, 220 + i as i32 * 64, 200, 48),
-                        label,
-                        22.0,
-                        i == 0,
-                    );
+                    hud::button(&mut p, Rect::new(380, 220 + i as i32 * 64, 200, 48), label, 22.0, i == 0);
                 }
-                p.text(
-                    20.0,
-                    510.0,
-                    "Season 2",
-                    FontStyle::regular(13.0),
-                    rgb(180, 210, 190),
-                );
+                p.text(20.0, 510.0, "Season 2", FontStyle::regular(13.0), rgb(180, 210, 190));
             }
             Phase::Turn { .. } => {
                 self.draw_hands(&mut p, Some(self.chosen));
-                p.text_centered(
-                    480.0,
-                    300.0,
-                    "Your turn",
-                    FontStyle::bold(20.0),
-                    rgb(250, 250, 230),
-                );
+                p.text_centered(480.0, 300.0, "Your turn", FontStyle::bold(20.0), rgb(250, 250, 230));
                 self.draw_hud(&mut p);
             }
-            Phase::Reveal {
-                mine,
-                theirs,
-                outcome,
-                ..
-            } => {
+            Phase::Reveal { mine, theirs, outcome, .. } => {
                 self.draw_hands(&mut p, None);
                 card_face(&mut p, 400.0, 200.0, theirs);
                 card_face(&mut p, 496.0, 212.0, mine);
@@ -466,25 +327,9 @@ impl Game for Cards {
             Phase::End { won, .. } => {
                 hud::veil(&mut p, rgb(0, 0, 0), 0.5);
                 if won {
-                    hud::banner(
-                        &mut p,
-                        480.0,
-                        170.0,
-                        "VICTORY",
-                        72.0,
-                        rgb(250, 210, 80),
-                        rgb(80, 50, 0),
-                    );
+                    hud::banner(&mut p, 480.0, 170.0, "VICTORY", 72.0, rgb(250, 210, 80), rgb(80, 50, 0));
                 } else {
-                    hud::banner(
-                        &mut p,
-                        480.0,
-                        170.0,
-                        "DEFEAT",
-                        72.0,
-                        rgb(200, 70, 70),
-                        rgb(40, 0, 0),
-                    );
+                    hud::banner(&mut p, 480.0, 170.0, "DEFEAT", 72.0, rgb(200, 70, 70), rgb(40, 0, 0));
                 }
                 p.text_centered(
                     480.0,
@@ -507,27 +352,14 @@ impl Game for Cards {
                     name: name.into(),
                     concept: concept.into(),
                     kind: "text".into(),
-                    rect: Rect::new(
-                        x as i32,
-                        y as i32,
-                        measure(&t, s).ceil() as u32,
-                        s.line_height().ceil() as u32,
-                    ),
+                    rect: Rect::new(x as i32, y as i32, measure(&t, s).ceil() as u32, s.line_height().ceil() as u32),
                     value: Some(v),
                     max: None,
                     text: Some(t),
                     color: None,
                 }
             };
-            elements.push(text(
-                "score",
-                "score",
-                20.0,
-                14.0,
-                22.0,
-                self.score_text(),
-                self.score.0 as f64,
-            ));
+            elements.push(text("score", "score", 20.0, 14.0, 22.0, self.score_text(), self.score.0 as f64));
             let rt = self.round_text();
             elements.push(text(
                 "round",
@@ -540,15 +372,7 @@ impl Game for Cards {
             ));
             let tt = self.timer_text();
             let tw = measure(&tt, FontStyle::bold(22.0));
-            elements.push(text(
-                "timer",
-                "timer",
-                940.0 - tw,
-                14.0,
-                22.0,
-                tt,
-                self.seconds_left().unwrap_or(0) as f64,
-            ));
+            elements.push(text("timer", "timer", 940.0 - tw, 14.0, 22.0, tt, self.seconds_left().unwrap_or(0) as f64));
             elements.push(TruthElement {
                 name: "timer_bar".into(),
                 concept: "timer".into(),
@@ -560,12 +384,7 @@ impl Game for Cards {
                 color: Some(TIMER_COLOR),
             });
         }
-        Truth {
-            t_ms: self.t,
-            scene: self.scene(),
-            elements,
-            player: None,
-        }
+        Truth { t_ms: self.t, scene: self.scene(), elements, player: None }
     }
 
     fn drain_events(&mut self) -> Vec<TruthEvent> {

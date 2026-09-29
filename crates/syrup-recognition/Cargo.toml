@@ -1,5 +1,6 @@
 [package]
 name = "syrup-recognition"
+description = "Which game is this? A recogniser that combines window, executable, on-screen text and HUD signature evidence, and a catalog of known games"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 syrup-core.workspace = true
+serde.workspace = true
+regex.workspace = true
 
 [lints]
 workspace = true

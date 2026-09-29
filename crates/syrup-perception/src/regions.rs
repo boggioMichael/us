@@ -17,11 +17,7 @@ use crate::pixels::{chroma, color_distance, dhash};
 #[derive(Debug, Clone)]
 pub enum CandidateKind {
     /// Still and detailed: interface of some kind.
-    Stable {
-        still: f32,
-        detail: f32,
-        activity: f32,
-    },
+    Stable { still: f32, detail: f32, activity: f32 },
     /// A bar, and how still its place has been.
     Bar { bar: BarCandidate, still: f32 },
 }
@@ -87,22 +83,13 @@ const FORGET_AFTER: u32 = 8;
 
 fn bar_appearance(b: &BarTrack, norm: &NormRect) -> u64 {
     let hue_bucket = (crate::pixels::hue(b.color[0], b.color[1], b.color[2]) / 30.0) as u32;
-    let key = format!(
-        "bar:{hue_bucket}:{}:{}:{}",
-        (norm.y * 20.0) as u32,
-        (norm.x * 10.0) as u32,
-        b.drains_right
-    );
+    let key = format!("bar:{hue_bucket}:{}:{}:{}", (norm.y * 20.0) as u32, (norm.x * 10.0) as u32, b.drains_right);
     fnv64(key.as_bytes())
 }
 
 impl RegionTracker {
     pub fn new() -> Self {
-        RegionTracker {
-            regions: Vec::new(),
-            next_id: 1,
-            frame: (0, 0),
-        }
+        RegionTracker { regions: Vec::new(), next_id: 1, frame: (0, 0) }
     }
 
     pub fn reset(&mut self) {
@@ -155,20 +142,12 @@ impl RegionTracker {
     }
 
     /// Matches this frame's candidates; returns the regions to report and what changed.
-    pub fn update(
-        &mut self,
-        img: &RgbaImage,
-        candidates: &[Candidate],
-        now_ms: u64,
-    ) -> Vec<ObservedEvent> {
+    pub fn update(&mut self, img: &RgbaImage, candidates: &[Candidate], now_ms: u64) -> Vec<ObservedEvent> {
         let size = img.dimensions();
         if size != self.frame {
             if self.frame != (0, 0) {
                 // New size: the rectangles scale with it.
-                let (sx, sy) = (
-                    size.0 as f32 / self.frame.0 as f32,
-                    size.1 as f32 / self.frame.1 as f32,
-                );
+                let (sx, sy) = (size.0 as f32 / self.frame.0 as f32, size.1 as f32 / self.frame.1 as f32);
                 for r in self.regions.iter_mut() {
                     r.rect = r.rect.scale(sx, sy);
                 }
@@ -183,19 +162,9 @@ impl RegionTracker {
                     let found = self.regions.iter().enumerate().position(|(i, r)| {
                         !matched[i]
                             && r.bar.as_ref().is_some_and(|t| {
-                                let same_row =
-                                    overlap_1d(r.rect.y, r.rect.h, b.container.y, b.container.h)
-                                        >= 0.5;
-                                let anchor = if b.drains_right {
-                                    b.container.right()
-                                } else {
-                                    b.container.x
-                                };
-                                let t_anchor = if t.drains_right {
-                                    r.rect.right()
-                                } else {
-                                    r.rect.x
-                                };
+                                let same_row = overlap_1d(r.rect.y, r.rect.h, b.container.y, b.container.h) >= 0.5;
+                                let anchor = if b.drains_right { b.container.right() } else { b.container.x };
+                                let t_anchor = if t.drains_right { r.rect.right() } else { r.rect.x };
                                 same_row
                                     && t.drains_right == b.drains_right
                                     && (anchor - t_anchor).abs() <= 6.max(r.rect.h as i32)
@@ -216,11 +185,7 @@ impl RegionTracker {
                             let id = self.fresh_id();
                             let mut r = new_region(id, b.container, now_ms);
                             r.bar = Some(BarTrack {
-                                anchor: if b.drains_right {
-                                    b.container.right()
-                                } else {
-                                    b.container.x
-                                },
+                                anchor: if b.drains_right { b.container.right() } else { b.container.x },
                                 drains_right: b.drains_right,
                                 max_len: b.container.w,
                                 fill: b.fraction,
@@ -236,11 +201,7 @@ impl RegionTracker {
                         }
                     }
                 }
-                CandidateKind::Stable {
-                    still,
-                    detail,
-                    activity,
-                } => {
+                CandidateKind::Stable { still, detail, activity } => {
                     let found = self
                         .regions
                         .iter()
@@ -281,9 +242,7 @@ impl RegionTracker {
             }
             if let Some(bar) = r.bar.as_mut()
                 && r.seen > 0
-                && bar
-                    .track_color
-                    .is_some_and(|t| looks_empty(img, r.rect, bar.color, t))
+                && bar.track_color.is_some_and(|t| looks_empty(img, r.rect, bar.color, t))
             {
                 bar.fill = 0.0;
                 bar.min_fill = 0.0;
@@ -307,14 +266,7 @@ impl RegionTracker {
             }
         }
         let before: Vec<(u32, bool)> = self.regions.iter().map(|r| (r.id, r.confirmed)).collect();
-        self.regions.retain(|r| {
-            r.missed
-                <= if r.seeded && r.seen == 0 {
-                    u32::MAX
-                } else {
-                    FORGET_AFTER
-                }
-        });
+        self.regions.retain(|r| r.missed <= if r.seeded && r.seen == 0 { u32::MAX } else { FORGET_AFTER });
         for (id, confirmed) in before {
             if confirmed && !self.regions.iter().any(|r| r.id == id) {
                 events.push(ObservedEvent::RegionDisappeared { region: id });
@@ -443,21 +395,12 @@ fn update_bar(r: &mut TrackedRegion, b: &BarCandidate) {
     t.min_fill = t.min_fill.min(t.fill);
     t.max_fill = t.max_fill.max(t.fill);
     let rect = if t.drains_right {
-        Rect::new(
-            t.anchor - t.max_len as i32,
-            b.container.y,
-            t.max_len,
-            b.container.h,
-        )
+        Rect::new(t.anchor - t.max_len as i32, b.container.y, t.max_len, b.container.h)
     } else {
         Rect::new(t.anchor, b.container.y, t.max_len, b.container.h)
     };
     r.rect = smooth(r.rect, rect, 0.5);
-    t.anchor = if t.drains_right {
-        r.rect.right()
-    } else {
-        r.rect.x
-    };
+    t.anchor = if t.drains_right { r.rect.right() } else { r.rect.x };
 }
 
 /// The bar's place shows no fill at all, just its track.
@@ -485,11 +428,7 @@ fn looks_empty(img: &RgbaImage, rect: Rect, fill: [u8; 3], track: [u8; 3]) -> bo
 /// What a region probably is, from its shape, place and behaviour.
 fn classify(r: &TrackedRegion, (fw, fh): (u32, u32)) -> UiKind {
     if let Some(b) = &r.bar {
-        return UiKind::Bar {
-            fill: b.fill,
-            color: b.color,
-            vertical: false,
-        };
+        return UiKind::Bar { fill: b.fill, color: b.color, vertical: false };
     }
     let (w, h) = (r.rect.w as f32, r.rect.h as f32);
     let (fw, fh) = (fw.max(1) as f32, fh.max(1) as f32);
@@ -524,11 +463,7 @@ mod tests {
 
     fn bar(x: i32, fill_w: u32, total: u32, track: bool) -> Candidate {
         let fill = Rect::new(x, 500, fill_w, 20);
-        let container = if track {
-            Rect::new(x, 500, total, 20)
-        } else {
-            fill
-        };
+        let container = if track { Rect::new(x, 500, total, 20) } else { fill };
         Candidate {
             rect: container,
             kind: CandidateKind::Bar {
@@ -562,13 +497,7 @@ mod tests {
             UiKind::Bar { fill, .. } => assert!((fill - 0.5).abs() < 0.02, "{fill}"),
             ref k => panic!("{k:?}"),
         }
-        assert_eq!(
-            events
-                .iter()
-                .filter(|e| matches!(e, ObservedEvent::RegionAppeared { .. }))
-                .count(),
-            1
-        );
+        assert_eq!(events.iter().filter(|e| matches!(e, ObservedEvent::RegionAppeared { .. })).count(), 1);
         // Gone for a while: forgotten, with an event.
         let mut gone = Vec::new();
         for i in 0..10 {
@@ -578,10 +507,7 @@ mod tests {
                 400 + i * 100,
             ));
         }
-        assert!(
-            gone.iter()
-                .any(|e| matches!(e, ObservedEvent::RegionDisappeared { .. }))
-        );
+        assert!(gone.iter().any(|e| matches!(e, ObservedEvent::RegionDisappeared { .. })));
         assert!(t.visible().is_empty());
     }
 }

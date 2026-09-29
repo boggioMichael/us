@@ -28,9 +28,7 @@ impl DataDir {
         if let Some(dir) = std::env::var_os("SYRUP_DATA_DIR") {
             return PathBuf::from(dir);
         }
-        let home = std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(PathBuf::from);
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
         if cfg!(windows) {
             if let Some(appdata) = std::env::var_os("APPDATA") {
                 return PathBuf::from(appdata).join("SyrupUniversal");
@@ -88,20 +86,10 @@ impl DataDir {
 pub fn safe_name(name: &str) -> String {
     let cleaned: String = name
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
-                c
-            } else {
-                '_'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
         .collect();
     let trimmed = cleaned.trim_matches('.');
-    if trimmed.is_empty() {
-        "_".to_string()
-    } else {
-        trimmed.to_string()
-    }
+    if trimmed.is_empty() { "_".to_string() } else { trimmed.to_string() }
 }
 
 #[cfg(test)]

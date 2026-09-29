@@ -44,19 +44,12 @@ impl Rect {
     }
 
     pub fn center(&self) -> (f32, f32) {
-        (
-            self.x as f32 + self.w as f32 / 2.0,
-            self.y as f32 + self.h as f32 / 2.0,
-        )
+        (self.x as f32 + self.w as f32 / 2.0, self.y as f32 + self.h as f32 / 2.0)
     }
 
     /// Width over height (0 for an empty rectangle).
     pub fn aspect(&self) -> f32 {
-        if self.h == 0 {
-            0.0
-        } else {
-            self.w as f32 / self.h as f32
-        }
+        if self.h == 0 { 0.0 } else { self.w as f32 / self.h as f32 }
     }
 
     pub fn contains(&self, x: i32, y: i32) -> bool {
@@ -64,10 +57,7 @@ impl Rect {
     }
 
     pub fn contains_rect(&self, other: &Rect) -> bool {
-        other.x >= self.x
-            && other.y >= self.y
-            && other.right() <= self.right()
-            && other.bottom() <= self.bottom()
+        other.x >= self.x && other.y >= self.y && other.right() <= self.right() && other.bottom() <= self.bottom()
     }
 
     pub fn intersection(&self, other: &Rect) -> Option<Rect> {
@@ -91,11 +81,7 @@ impl Rect {
     pub fn iou(&self, other: &Rect) -> f32 {
         let inter = self.intersection(other).map_or(0, |r| r.area());
         let union = self.area() + other.area() - inter;
-        if union == 0 {
-            0.0
-        } else {
-            inter as f32 / union as f32
-        }
+        if union == 0 { 0.0 } else { inter as f32 / union as f32 }
     }
 
     /// Grown by `by` pixels on every side (shrunk when negative).
@@ -121,20 +107,13 @@ impl Rect {
 
     pub fn to_norm(&self, width: u32, height: u32) -> NormRect {
         let (fw, fh) = (width.max(1) as f32, height.max(1) as f32);
-        NormRect {
-            x: self.x as f32 / fw,
-            y: self.y as f32 / fh,
-            w: self.w as f32 / fw,
-            h: self.h as f32 / fh,
-        }
+        NormRect { x: self.x as f32 / fw, y: self.y as f32 / fh, w: self.w as f32 / fw, h: self.h as f32 / fh }
     }
 
     /// The gap between two rectangles along the axes (0 when they touch or overlap).
     pub fn gap(&self, other: &Rect) -> u32 {
         let dx = (other.x - self.right()).max(self.x - other.right()).max(0);
-        let dy = (other.y - self.bottom())
-            .max(self.y - other.bottom())
-            .max(0);
+        let dy = (other.y - self.bottom()).max(self.y - other.bottom()).max(0);
         dx.max(dy) as u32
     }
 }
@@ -171,8 +150,7 @@ impl NormRect {
 
     pub fn iou(&self, other: &NormRect) -> f32 {
         // Compare on a fine fixed grid so the arithmetic matches `Rect::iou`.
-        self.to_rect(10_000, 10_000)
-            .iou(&other.to_rect(10_000, 10_000))
+        self.to_rect(10_000, 10_000).iou(&other.to_rect(10_000, 10_000))
     }
 
     /// Which part of the screen it is in, for people: "top left", "bottom", "centre"...
@@ -192,11 +170,8 @@ impl NormRect {
         } else {
             2
         };
-        [
-            ["top left", "top", "top right"],
-            ["left", "centre", "right"],
-            ["bottom left", "bottom", "bottom right"],
-        ][row][col]
+        [["top left", "top", "top right"], ["left", "centre", "right"], ["bottom left", "bottom", "bottom right"]][row]
+            [col]
     }
 }
 
@@ -213,14 +188,8 @@ mod tests {
         assert!((a.iou(&b) - 25.0 / 175.0).abs() < 1e-6);
         assert_eq!(a.gap(&Rect::new(13, 0, 2, 2)), 3);
         assert_eq!(a.gap(&b), 0);
-        assert_eq!(
-            Rect::new(-5, -5, 10, 10).clip(8, 8),
-            Some(Rect::new(0, 0, 5, 5))
-        );
-        assert_eq!(
-            Rect::new(2, 3, 4, 5).scale(2.0, 2.0),
-            Rect::new(4, 6, 8, 10)
-        );
+        assert_eq!(Rect::new(-5, -5, 10, 10).clip(8, 8), Some(Rect::new(0, 0, 5, 5)));
+        assert_eq!(Rect::new(2, 3, 4, 5).scale(2.0, 2.0), Rect::new(4, 6, 8, 10));
     }
 
     #[test]
@@ -229,9 +198,6 @@ mod tests {
         let n = r.to_norm(1280, 720);
         assert_eq!(n.to_rect(1280, 720), r);
         assert_eq!(n.to_rect(1920, 1080), Rect::new(192, 108, 384, 54));
-        assert_eq!(
-            Rect::new(0, 600, 100, 100).to_norm(1280, 720).place(),
-            "bottom left"
-        );
+        assert_eq!(Rect::new(0, 600, 100, 100).to_norm(1280, 720).place(), "bottom left");
     }
 }

@@ -61,6 +61,18 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
+/// With `SYRUP_TRACE=1`, each stage of the frame loop says when it starts (on
+/// stderr, flushed at once): the last line before a crash says where it was.
+pub fn trace(stage: &str) {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *ON.get_or_init(|| std::env::var_os("SYRUP_TRACE").is_some_and(|v| v != "0")) {
+        use std::io::Write;
+        let mut err = std::io::stderr().lock();
+        let _ = writeln!(err, "trace: {stage}");
+        let _ = err.flush();
+    }
+}
+
 /// FNV-1a, 64 bits: a stable hash for ids (not for security).
 pub fn fnv64(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;

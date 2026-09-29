@@ -65,38 +65,44 @@ Syrup sees what the player sees and says things. Nothing else.
                                                feedback) ──FeedbackReceived──▶ Coach, Profile, PlayerModel
 ```
 
+(The diagram names the design's parts. In the MVP the detectors live in
+`syrup-perception` as a few modules rather than one type each, and the
+optional generic vision model is a slot for later: nothing in the MVP needs a
+model.)
+
 Everything that happens is also an `Event` on the `EventBus`
 (`FrameCaptured`, `SceneChanged`, `GameIdentified`, `UiElementDiscovered`,
 `StateChanged`, `PlayerDied`, `ObjectiveChanged`, `ResearchRequested`,
 `KnowledgeUpdated`, `AdviceGenerated`, `AdviceShown`, `AdviceSuppressed`,
-`FeedbackReceived`, `ProfileUpdated`, `Telemetry`). The bus keeps a numbered
+`FeedbackReceived`, `ProfileUpdated`, `PluginActivated`, `Note`; see
+[the protocol](../protocols/events.md)). The bus keeps a numbered
 ring of recent events; the devtools page and the session timeline read from
 it, and nothing downstream has to know which module produced an event.
 
 The realtime loop is one thread: capture, sample, analyse, track, decide,
-draw. Research, OCR of large regions, and any heavy reasoning run on worker
-threads and come back as events, so the loop's latency does not depend on
-the network or a model.
+draw. Research runs on a worker thread and comes back as events; live, OCR
+does too. The loop's latency never depends on the network or a slow engine.
 
 ## The crates
 
 | crate | responsibility |
 |---|---|
 | `syrup-core` | the shared vocabulary: geometry (`Rect`, `NormRect`), `Confidence`, `Detection<T>`, the observation IR, game-state and profile types, advice and feedback types, events and the event bus, data paths |
-| `syrup-capture` | `FrameSource`: a game window or the screen on Windows, a video (through ffmpeg), a folder of images, a synthetic game; window enumeration and picking the game window |
-| `syrup-perception` | `FrameSampler` and `SceneAnalyzer` with the detectors above; OCR backends (Windows OCR, Tesseract, none) |
-| `syrup-state` | `TemporalStateTracker` (per-element histories, trends, transitions) and `GameStateEngine` (which element is probably which concept) |
-| `syrup-recognition` | `GameRecognizer` and the built-in catalog of known games |
-| `syrup-knowledge` | `GameKnowledgeEngine`: the knowledge graph, facts with provenance and versions, and the `ResearchAgent` |
-| `syrup-memory` | `MemoryStore`: profiles (game memory), session timelines, episodes, player memory, and deletion |
-| `syrup-player` | `PlayerModel`: skill estimates with confidence, habits, repeated mistakes |
+| `syrup-capture` | `FrameSource`: a game window or the screen on Windows, a video (through ffmpeg), a folder of images, a synthetic game; window enumeration and picking the game window; cutting a recording's taskbar off |
+| `syrup-perception` | `FrameSampler` and `SceneAnalyzer`: stability, bars, text (Windows OCR, Tesseract, or none), regions, motion, scenes; finding the taskbar in screen recordings |
+| `syrup-state` | `StateEngine`: per-element histories, trends and transitions, and which element is probably which concept |
+| `syrup-recognition` | `Recognizer` and the built-in catalog of known games |
+| `syrup-knowledge` | the `KnowledgeGraph` (facts with provenance and versions), the `ResearchAgent` and its worker thread |
+| `syrup-memory` | `MemoryStore`: profiles (game memory), session timelines, episodes, player memory, and deletion; `ProfileLearner` |
+| `syrup-player` | `PlayerModel` and `PlayerTracker`: skill estimates with confidence, habits, repeated mistakes |
 | `syrup-coach` | `CoachEngine`: advice rules, `InterruptionPolicy`, `SpoilerPolicy`, learning from feedback, Syrup's voice (short lines) |
-| `syrup-avatar` | `SyrupAvatar`: the mascot composed from layers (head, hat, medallion, expression), hats chosen from the game's profile |
+| `syrup-paint` | a small software painter (antialiased shapes, embedded DejaVu fonts) |
+| `syrup-avatar` | Syrup composed from layers (face, hat, medallion, expression prop), blinking and speaking |
 | `syrup-ui` | the overlay (a portable painter, and on Windows a click-through window with feedback buttons), and the voice (the system's speech on Windows) |
 | `syrup-plugins` | `GamePlugin`, `PluginManager`, and the built-in plugins (`maplestory`) |
-| `syrup-runtime` | the services wired together: the realtime loop, budgets, telemetry, the devtools server |
-| `syrup-testgames` | three synthetic games with exact ground truth, for tests and demos |
-| `apps/desktop` | the `syrup` program: `live`, `replay`, `simulate`, `research`, `profiles`, `forget` |
+| `syrup-runtime` | everything wired together: `Runtime::on_frame`, the frame loop (`live::run`), the devtools server |
+| `syrup-testgames` | three synthetic games with exact ground truth, and the scorer that measures Syrup against it |
+| `apps/desktop` | the `syrup` program (`live`, `replay`, `simulate`, `research`, `profiles`, `forget`, `avatar`, `windows`) and `syrup-testgame` |
 | `apps/devtools` | the developer page (TypeScript), served by `syrup` on `localhost` |
 
 ## The universal intermediate representation
@@ -262,21 +268,27 @@ it keeps itself out of screen captures so Syrup never reads its own card.
 ## Plugins
 
 ```rust
-trait GamePlugin {
+trait GamePlugin: Send {
     fn id(&self) -> &str;
-    fn detect(&self, cues: &IdentityCues) -> Option<Confidence>;
+    fn name(&self) -> &str;
+    fn detect(&self, cues: &IdentityCues, identity: &GameIdentity) -> Option<Confidence>;
     fn parse_observation(&mut self, frame: &Frame, obs: &mut Observation);
     fn extract_state(&mut self, obs: &Observation, state: &mut GameState);
-    fn known_regions(&self) -> Vec<KnownUiElement>;
+    fn known_regions(&self) -> Vec<ElementHint>;
     fn known_entities(&self) -> Vec<KnowledgeNode>;
+    fn seed_facts(&self) -> Vec<Fact>;
     fn knowledge_sources(&self) -> Vec<KnowledgeSource>;
     fn visual_theme(&self) -> Option<VisualIdentity>;
-    fn advice(&mut self, ctx: &CoachContext) -> Vec<AdviceCandidate>;
+    fn scene_words(&self) -> Vec<(SceneKind, String)>;
+    fn genres(&self) -> Vec<String>;
+    fn advice(&mut self, ctx: &PluginContext) -> Vec<Advice>;
 }
 ```
 
-Every hook has a default that does nothing, so a plugin can be one method.
-The universal system runs the same with no plugins at all.
+Every hook but `id` and `name` has a default that does nothing. Most plugins
+need no code at all: a `plugin.json` is a complete plugin (see
+[writing a plugin](../plugins/writing-a-plugin.md)). The universal system
+runs the same with no plugins at all.
 
 ## Performance
 
@@ -293,8 +305,8 @@ The universal system runs the same with no plugins at all.
 
 ## Observability
 
-`syrup live --devtools` (and `syrup replay --devtools`) serves a page on
-`http://127.0.0.1:7878`: the current game and why Syrup thinks so, the frame
+`syrup live --devtools` (and `replay`, `simulate`) serves a page on
+`http://127.0.0.1:7777` ([its API](../protocols/devtools-api.md)): the current game and why Syrup thinks so, the frame
 with every detected region, object and text box drawn on it, concepts with
 their evidence, active hypotheses, the player model, knowledge queries, recent
 events, the advice queue with what was suppressed and why, stage latencies and

@@ -134,9 +134,11 @@ jobs:
           foreach ($r in $runs) {
             $i++
             $all = @("live", "--window", "Dungeon 3D", "--seconds", "8", "--no-voice", "--no-research", "--data-dir", "out\diag$i") + $r.args
+            $env:SYRUP_TRACE = "1"
             & target\release\syrup.exe @all 2> "out\diag$i.log" > "out\diag$i.txt"
             $code = $LASTEXITCODE
-            $last = (Get-Content "out\diag$i.log" | Select-Object -Last 2) -join " / "
+            $env:SYRUP_TRACE = $null
+            $last = (Get-Content "out\diag$i.log" | Select-Object -Last 4) -join " / "
             $report += "$($r.name): exit $code ($last)"
           }
           Write-Output "::notice title=live parts::$($report -join '%0A')"

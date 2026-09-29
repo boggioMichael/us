@@ -183,7 +183,9 @@ pub fn run_with(
     let live = source.is_live();
     let interval = Duration::from_secs_f32(1.0 / source.nominal_fps().clamp(0.5, 60.0));
     let voice = Voice::new(opts.voice);
+    crate::trace("overlay window");
     let mut stage = Stage::new(opts);
+    crate::trace("loop");
     let mut report = LiveReport {
         frames: 0,
         analysed: 0,
@@ -200,6 +202,7 @@ pub fn run_with(
             break;
         }
         let tick = Instant::now();
+        crate::trace("capture");
         match source.next() {
             Ok(Capture::Frame(frame)) => {
                 let ts = frame.timestamp_ms;
@@ -210,7 +213,9 @@ pub fn run_with(
                 report.frames += 1;
                 stage.anchor =
                     Some(syrup_core::Rect::new(frame.origin.0, frame.origin.1, frame.width(), frame.height()));
+                crate::trace("frame");
                 let step = rt.on_frame(&frame);
+                crate::trace("frame done");
                 if step.analysed {
                     report.analysed += 1;
                 }
@@ -234,6 +239,7 @@ pub fn run_with(
                     stage.last_line = line;
                     stage.last_mode = Some(rt.view.mode);
                 }
+                crate::trace("overlay");
                 stage.show(rt, ts, changed);
                 stage.pump(rt);
                 if live {

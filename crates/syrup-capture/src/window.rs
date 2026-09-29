@@ -274,6 +274,7 @@ impl FrameSource for WindowSource {
     fn next(&mut self) -> Result<Capture, CaptureError> {
         let due = self.last_resolve.is_none_or(|t| t.elapsed().as_millis() >= 1000);
         if due || self.current.is_none() {
+            syrup_core::util::trace("capture: find the window");
             self.resolve();
         }
         let Some(window) = self.current.clone() else {
@@ -284,6 +285,7 @@ impl FrameSource for WindowSource {
         }
         #[cfg(windows)]
         {
+            syrup_core::util::trace("capture: grab");
             match self.grabber.grab_window(window.handle) {
                 Some((image, origin)) => {
                     let ts = self.started.elapsed().as_millis() as u64;

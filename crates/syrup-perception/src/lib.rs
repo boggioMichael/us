@@ -117,6 +117,7 @@ impl SceneAnalyzer {
         let started = Instant::now();
         let now = frame.timestamp_ms;
         let (fw, fh) = frame.size();
+        syrup_core::util::trace("perceive: stability");
         let work = WorkImage::from_frame(&frame.image, self.cfg.work_width);
         let change = self.stability.update(&work);
         let mut metrics = scene::metrics(&work, change);
@@ -137,6 +138,7 @@ impl SceneAnalyzer {
             }
             candidates.push(Candidate { rect, kind: CandidateKind::Stable { still, detail, activity } });
         }
+        syrup_core::util::trace("perceive: bars");
         // Bars, kept when they are part of the interface.
         let ready = self.stability.is_ready();
         let mut seen_bars = Vec::new();
@@ -173,6 +175,7 @@ impl SceneAnalyzer {
         while self.bar_history.len() > 6 {
             self.bar_history.pop_front();
         }
+        syrup_core::util::trace("perceive: regions");
         let mut events = self.regions.update(&frame.image, &candidates, now);
 
         // Text.
@@ -187,6 +190,7 @@ impl SceneAnalyzer {
             .collect();
         let scene_cut = events.iter().any(|e| matches!(e, ObservedEvent::SceneChanged { .. })) || self.analysed <= 1;
         let big_change = change > 0.35;
+        syrup_core::util::trace("perceive: text");
         let mut text = self.text.update(frame, &to_read, scene_cut || big_change);
         let mut ui_regions = self.regions.visible();
         let mut relationships = Vec::new();
@@ -227,6 +231,7 @@ impl SceneAnalyzer {
             let (fx, fy) = ((x as f32 * work.scale) as i32, (y as f32 * work.scale) as i32);
             ui_regions.iter().any(|r| r.rect.contains(fx, fy))
         };
+        syrup_core::util::trace("perceive: motion");
         let (objects, characters, motion_fraction) = self.motion.update(&work, &interface);
         metrics.motion = motion_fraction;
         let signature = scene::signature(&work, &interface);
@@ -245,6 +250,7 @@ impl SceneAnalyzer {
             extra: &self.cfg.scene_words,
             now_ms: now,
         };
+        syrup_core::util::trace("perceive: scene");
         let (scene, scene_events) = self.scene.update(&features);
         events.extend(scene_events);
 

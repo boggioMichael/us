@@ -425,6 +425,7 @@ impl Runtime {
         for c in commands {
             self.on_command(c, now);
         }
+        trace("sample");
         let decision = self.sampler.decide(frame);
         if !decision.analyse {
             return Step::default();
@@ -450,6 +451,7 @@ impl Runtime {
         }
 
         let t = Instant::now();
+        trace("perceive");
         let mut obs = self.analyzer.analyze(frame);
         self.timings.insert("perception".into(), t.elapsed().as_secs_f32() * 1000.0);
         if let Some(p) = self.plugins.active() {
@@ -484,10 +486,12 @@ impl Runtime {
         }
 
         let t = Instant::now();
+        trace("recognise");
         self.maybe_recognize(frame, &obs, now);
         self.timings.insert("recognition".into(), t.elapsed().as_secs_f32() * 1000.0);
 
         let t = Instant::now();
+        trace("state");
         let up = self.state.update(&obs);
         if let Some(p) = self.plugins.active() {
             p.extract_state(&obs, self.state.state_mut());
@@ -559,6 +563,7 @@ impl Runtime {
             self.last_profile_event_ms = now;
             self.publish(Event::ProfileUpdated { ts_ms: now, game_id: game_id.clone(), reason: changes.join("; ") });
         }
+        trace("player");
         let insights = self.tracker.update(&mut self.player, &game_id, self.state.state(), &up.transitions);
         for i in insights {
             self.announcements.push(Announcement::Insight(i));
@@ -567,6 +572,7 @@ impl Runtime {
 
         // Coaching.
         let t = Instant::now();
+        trace("coach");
         let extra = match (self.plugins.active(), self.identity.as_ref()) {
             (Some(p), Some(identity)) => p.advice(&PluginContext {
                 now_ms: now,
@@ -634,7 +640,9 @@ impl Runtime {
             self.last_save_ms = now;
             self.save_all();
         }
+        trace("log");
         self.flush_log();
+        trace("snapshot");
         self.publish_snapshot(frame, &obs);
         self.last_obs = Some(obs);
         Step { analysed: true, shown: out.shown }
@@ -1189,6 +1197,8 @@ fn once_in_a_while(last: &mut BTreeMap<String, u64>, topic: &str, now: u64) -> b
     }
     due
 }
+
+pub use syrup_core::util::trace;
 
 fn syrup_kind(k: &UiKind) -> &'static str {
     match k {

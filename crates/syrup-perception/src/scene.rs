@@ -356,6 +356,10 @@ fn classify(f: &SceneFeatures, drained: bool) -> (SceneKind, f32, String) {
     if m.brightness < 0.1 && m.detail < 0.03 && m.change < 0.02 {
         consider(SceneKind::Loading, 0.5, "dark, plain and still".into());
     }
+    // Nothing to play on a (nearly) black screen: it is a transition.
+    if m.brightness < 0.06 {
+        consider(SceneKind::Loading, 0.85, "the screen is black".into());
+    }
     if f.letterbox && m.change > 0.01 {
         consider(SceneKind::Cutscene, 0.65, "letterbox bars and motion".into());
     }

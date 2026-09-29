@@ -423,6 +423,11 @@ impl StateEngine {
             l.contains("level up") || l.contains("leveled up") || l.contains("levelled up")
         });
 
+        // A black or loading screen shows no interface to read: keep what was
+        // known (a bar is not empty because the screen went dark).
+        if obs.metrics.brightness < 0.08 || obs.scene.kind == SceneKind::Loading {
+            return out;
+        }
         // Bars.
         let mut used_text = vec![false; obs.text.len()];
         for r in &obs.ui_regions {
@@ -543,7 +548,10 @@ impl StateEngine {
             // "Defeat the Mossy King" is an objective; "DEFEAT" on its own is a
             // result screen, and chat about a quest is chat.
             let objective_like = OBJECTIVE_WORDS.iter().any(|w| crate::has_word(&lower, w));
-            if objective_like && item.text.len() >= 6 && tokens >= 2 && !by_bar && !is_speech(&item.text) {
+            // A few words in capitals ("QUEST HELPER") are a panel's title.
+            let letters: Vec<char> = item.text.chars().filter(|c| c.is_alphabetic()).collect();
+            let title = tokens <= 3 && !letters.is_empty() && letters.iter().all(|c| !c.is_lowercase());
+            if objective_like && item.text.len() >= 6 && tokens >= 2 && !title && !by_bar && !is_speech(&item.text) {
                 objective_text = Some(item);
                 continue;
             }

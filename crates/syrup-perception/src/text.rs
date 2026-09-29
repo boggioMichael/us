@@ -291,6 +291,18 @@ mod windows_ocr {
             } else {
                 img
             };
+            // A short word alone ("HP") is often not read at all: give it room,
+            // in the colour around it.
+            let padded;
+            let (src, pad) = if hint != TextHint::Sparse && src.height() < 200 {
+                let m = (src.height() / 2).max(12);
+                let mut canvas = RgbaImage::from_pixel(src.width() + 2 * m, src.height() + 2 * m, *src.get_pixel(0, 0));
+                image::imageops::overlay(&mut canvas, src, m as i64, m as i64);
+                padded = canvas;
+                (&padded, m as f32)
+            } else {
+                (src, 0.0)
+            };
             let bitmap = Self::bitmap(src).ok_or("could not make a bitmap")?;
             let result = self.engine.RecognizeAsync(&bitmap).and_then(|op| op.get()).map_err(|e| e.to_string())?;
             let mut out = Vec::new();
@@ -300,8 +312,8 @@ mod windows_ocr {
                     let text = word.Text().map(|t| t.to_string()).unwrap_or_default();
                     let r = word.BoundingRect().map_err(|e| e.to_string())?;
                     let rect = Rect::new(
-                        (r.X / k) as i32,
-                        (r.Y / k) as i32,
+                        ((r.X - pad) / k) as i32,
+                        ((r.Y - pad) / k) as i32,
                         (r.Width / k).ceil() as u32,
                         (r.Height / k).ceil() as u32,
                     );

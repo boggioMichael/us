@@ -950,11 +950,21 @@ dependencies = [
  "syrup-runtime",
  "syrup-testgames",
  "syrup-ui",
+ "tempfile",
 ]
 
 [[package]]
 name = "syrup-e2e"
 version = "0.1.0"
+dependencies = [
+ "syrup-capture",
+ "syrup-core",
+ "syrup-knowledge",
+ "syrup-perception",
+ "syrup-runtime",
+ "syrup-testgames",
+ "tempfile",
+]
 
 [[package]]
 name = "syrup-knowledge"

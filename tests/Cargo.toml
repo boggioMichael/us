@@ -1,12 +1,19 @@
 [package]
 name = "syrup-e2e"
-description = "End-to-end tests of Syrup Universal on the synthetic games"
+description = "End-to-end tests of Syrup Universal: three very different synthetic games, one data folder, two sessions each"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [dependencies]
+syrup-core.workspace = true
+syrup-capture.workspace = true
+syrup-perception.workspace = true
+syrup-knowledge.workspace = true
+syrup-runtime.workspace = true
+syrup-testgames.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true

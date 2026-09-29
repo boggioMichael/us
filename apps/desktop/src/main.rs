@@ -14,7 +14,6 @@
 //! Syrup only ever reads pixels. It never sends input to a game, never reads
 //! or writes a game's memory, and never touches its files or its network.
 
-use std::collections::BTreeMap;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -32,7 +31,8 @@ use syrup_memory::MemoryStore;
 use syrup_runtime::devtools::Devtools;
 use syrup_runtime::live::{LiveOptions, LiveReport, run_with};
 use syrup_runtime::{Runtime, RuntimeConfig, concept_text, game_for_title};
-use syrup_testgames::{GameKind, Session, TruthEventKind};
+use syrup_testgames::score::{Happened, Score};
+use syrup_testgames::{GameKind, Session};
 use syrup_ui::{Line, OverlayMode, OverlayView};
 
 fn run_args(c: Command) -> Command {
@@ -421,7 +421,7 @@ fn go(
     };
     let events = rt.bus.subscribe();
     let mut next_state = 0u64;
-    let mut scores = truth.map(|_| TruthScores::default());
+    let mut scores = truth.map(|_| Score::default());
     let opts = LiveOptions { print: !m.get_flag("quiet") && !json, ..opts };
     let report = run_with(&mut rt, source, &opts, |rt, frame, step| {
         if explain {
@@ -448,7 +448,7 @@ fn go(
         print_summary(&rt, &report);
     }
     if let (Some(t), Some(s)) = (truth, scores) {
-        t.report(&rt, &report, &s);
+        t.report(&report, &s);
     }
     // A recording is over in seconds; keep the page up to look at what it left.
     if let Some(d) = devtools
@@ -617,64 +617,32 @@ struct TruthCheck {
     log: Arc<std::sync::Mutex<syrup_testgames::TruthLog>>,
 }
 
-#[derive(Default)]
-struct TruthScores {
-    /// concept → (frames it was shown, frames Syrup had it, sum of |error|, values compared)
-    concepts: BTreeMap<String, (u32, u32, f64, u32)>,
-    /// (frames, frames whose scene Syrup got right)
-    scenes: (u32, u32),
-}
-
 impl TruthCheck {
-    fn score(&self, rt: &Runtime, t_ms: u64, s: &mut TruthScores) {
+    fn score(&self, rt: &Runtime, t_ms: u64, s: &mut Score) {
         let Ok(log) = self.log.lock() else { return };
         let Some(truth) = log.at(t_ms) else { return };
-        s.scenes.0 += 1;
-        if rt.last_observation().is_some_and(|o| o.scene.kind == truth.scene) {
-            s.scenes.1 += 1;
-        }
-        for e in &truth.elements {
-            let Some(want) = e.fraction() else { continue };
-            let entry = s.concepts.entry(e.concept.clone()).or_default();
-            entry.0 += 1;
-            if let Some(c) = rt.state().concept(&e.concept) {
-                entry.1 += 1;
-                if let Some(got) = c.fraction() {
-                    entry.2 += (got - want).abs();
-                    entry.3 += 1;
-                }
-            }
-        }
+        let scene = rt.last_observation().map(|o| o.scene.kind).unwrap_or_default();
+        s.observe(truth, scene, |name| rt.state().concept(name).map(|c| c.fraction()));
     }
 
-    fn report(&self, rt: &Runtime, r: &LiveReport, s: &TruthScores) {
+    fn report(&self, r: &LiveReport, s: &Score) {
         let Ok(log) = self.log.lock() else { return };
-        // Syrup counts every defeat screen (a death, a lost match) as a death.
-        let deaths =
-            log.events.iter().filter(|e| matches!(e.kind, TruthEventKind::Died | TruthEventKind::Defeat)).count();
-        let wins = log.events.iter().filter(|e| matches!(e.kind, TruthEventKind::Victory)).count();
-        let levels = log.events.iter().filter(|e| matches!(e.kind, TruthEventKind::LevelUp { .. })).count();
+        let h = Happened::from(&log);
         eprintln!();
         eprintln!("against the truth:");
+        // Syrup counts every defeat screen (a death, a lost match) as a death.
         eprintln!(
-            "  deaths or defeats: {deaths} happened, {} seen · wins: {wins}, {} seen · level-ups: {levels}, {} seen",
-            r.summary.deaths, r.summary.victories, r.summary.level_ups
+            "  deaths or defeats: {} happened, {} seen · wins: {}, {} seen · level-ups: {}, {} seen",
+            h.defeats, r.summary.deaths, h.wins, r.summary.victories, h.level_ups, r.summary.level_ups
         );
-        if s.scenes.0 > 0 {
-            eprintln!(
-                "  scene right in {:.0}% of {} analysed frames",
-                100.0 * s.scenes.1 as f64 / s.scenes.0 as f64,
-                s.scenes.0
-            );
-        }
-        for (name, (shown, had, err, n)) in &s.concepts {
-            let mean = if *n > 0 { format!("{:.3}", err / *n as f64) } else { "–".into() };
+        eprintln!("  scene right in {:.0}% of {} analysed frames", 100.0 * s.scene_accuracy(), s.frames);
+        for (name, c) in &s.concepts {
+            let mean = c.mean_error().map(|e| format!("{e:.3}")).unwrap_or_else(|| "–".into());
             eprintln!(
                 "  {name}: known in {:.0}% of the frames it was on screen · mean error {mean}",
-                100.0 * *had as f64 / (*shown).max(1) as f64
+                100.0 * c.coverage()
             );
         }
-        let _ = rt;
     }
 }
 

@@ -21,6 +21,7 @@ pub mod cards;
 pub mod dungeon;
 pub mod hud;
 pub mod rng;
+pub mod score;
 pub mod scroller;
 
 use std::sync::{Arc, Mutex};

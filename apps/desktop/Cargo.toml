@@ -32,5 +32,8 @@ serde_json.workspace = true
 clap = { version = "4", default-features = false, features = ["std", "help", "usage", "error-context"] }
 minifb.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

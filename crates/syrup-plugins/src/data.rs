@@ -144,8 +144,7 @@ impl GamePlugin for DataPlugin {
     }
 
     fn detect(&self, _cues: &IdentityCues, identity: &GameIdentity) -> Option<Confidence> {
-        (self.spec.games.contains(&identity.game_id) || identity.game_id == self.spec.id)
-            .then_some(identity.confidence)
+        (self.spec.games.contains(&identity.game_id) || identity.game_id == self.spec.id).then_some(identity.confidence)
     }
 
     fn known_regions(&self) -> Vec<ElementHint> {

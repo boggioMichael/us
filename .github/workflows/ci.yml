@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Build and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # OCR: Linux and macOS use Tesseract; Windows has its own OCR engine.
+      - name: Install Tesseract and ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr ffmpeg
+      - name: Install Tesseract (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tesseract
+      - name: Formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - name: Lints
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (unit, program, end to end on three games)
+        run: cargo test --workspace
+      - name: Release build
+        run: cargo build --release -p syrup-desktop
+      - name: Draw Syrup
+        run: cargo run --release -p syrup-desktop --bin syrup -- avatar --out avatar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: syrup-avatar-${{ matrix.os }}
+          path: avatar
+
+  devtools:
+    name: Devtools page compiles and is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g typescript@5
+      - name: Compile
+        working-directory: apps/devtools
+        run: tsc -p tsconfig.json
+      - name: The committed page is what the source compiles to
+        run: git diff --exit-code -- apps/devtools/dist
+
+  live-windows:
+    name: Live on Windows (a test game in a real window)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release -p syrup-desktop
+      - name: Watch the dungeon live
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force out, games | Out-Null
+          # Named like a real game's executable, the test game is "Dungeon 3D" to Windows.
+          Copy-Item target\release\syrup-testgame.exe games\dungeon3d.exe
+          $game = Start-Process -FilePath games\dungeon3d.exe -ArgumentList "--seconds", "100" -PassThru
+          Start-Sleep -Seconds 5
+          target\release\syrup.exe windows | Tee-Object out\windows.txt
+          target\release\syrup.exe live --window "Dungeon 3D" --seconds 50 --no-voice --no-research --overlay-dir out\overlay --data-dir out\data --json 2> out\live.log > out\summary.json
+          Get-Content out\live.log
+          Get-Content out\summary.json
+          $s = Get-Content out\summary.json -Raw | ConvertFrom-Json
+          if ($s.title -ne "Dungeon 3D") { throw "the game was not recognised: $($s.title)" }
+          if ($s.analysed_frames -lt 40) { throw "only $($s.analysed_frames) frames analysed" }
+          $profile = Get-ChildItem out\data\games -Recurse -Filter profile.json | Select-Object -First 1
+          $p = Get-Content $profile.FullName -Raw | ConvertFrom-Json
+          if ($p.known_ui_elements.Count -lt 1) { throw "no interface learned" }
+          if (-not ($p.executables -contains "dungeon3d.exe")) { throw "executable not learned: $($p.executables)" }
+          if ((Get-ChildItem out\overlay -Filter *.png).Count -lt 1) { throw "no overlay pictures" }
+          $timeline = Get-ChildItem out\data\sessions -Recurse -Filter timeline.jsonl | Select-Object -First 1
+          $learned = Select-String -Path $timeline.FullName -Pattern '"concept_learned"' | Measure-Object
+          Write-Host "concepts learned: $($learned.Count)"
+          if ($learned.Count -lt 1) { throw "nothing learned about the interface" }
+          Stop-Process -Id $game.Id -ErrorAction SilentlyContinue
+      - name: Second session remembers the game
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $game = Start-Process -FilePath games\dungeon3d.exe -ArgumentList "--seconds", "40", "--seed", "5" -PassThru
+          Start-Sleep -Seconds 4
+          target\release\syrup.exe live --exe dungeon3d.exe --seconds 15 --no-voice --no-research --data-dir out\data 2> out\live2.log > out\said2.txt
+          Get-Content out\live2.log
+          Get-Content out\said2.txt
+          if (-not (Select-String -Path out\said2.txt -Pattern "again" -Quiet)) { throw "Syrup did not remember the game" }
+          target\release\syrup.exe profiles --data-dir out\data | Tee-Object out\profiles.txt
+          Stop-Process -Id $game.Id -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-windows
+          path: out
+
+  research-live:
+    name: Research against the real web (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p syrup-desktop
+      - name: Look up a few games
+        run: |
+          for game in "Hollow Knight" "MapleStory" "Balatro"; do
+            ./target/release/syrup research "$game" --data-dir research-data | tee -a research.txt || true
+          done
+          ./target/release/syrup research "Hollow Knight" --topic "Hornet" --data-dir research-data | tee -a research.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: research-live
+          path: research.txt

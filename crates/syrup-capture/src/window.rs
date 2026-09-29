@@ -139,10 +139,16 @@ pub fn pick_window(windows: &[WindowInfo], selector: &WindowSelector, own_pid: u
     match selector {
         WindowSelector::Title(t) => {
             let t = t.to_lowercase();
+            // Never a terminal (whose title may be the very command naming the game),
+            // the desktop, or Syrup; an exact title beats one that only contains it.
             windows
                 .iter()
-                .filter(|w| w.process_id != own_pid && w.title.to_lowercase().contains(&t))
-                .max_by_key(|w| (w.foreground, w.client.area()))
+                .filter(|w| {
+                    w.process_id != own_pid
+                        && !NOT_GAME_CLASSES.contains(&w.class.as_str())
+                        && w.title.to_lowercase().contains(&t)
+                })
+                .max_by_key(|w| (w.title.trim().to_lowercase() == t.trim(), w.foreground, w.client.area()))
                 .cloned()
         }
         WindowSelector::Executable(e) => {
@@ -417,6 +423,15 @@ mod tests {
         assert_eq!(pick_window(&windows, &WindowSelector::Executable("maplestory".into()), 0).unwrap().handle, 1);
         assert_eq!(pick_window(&windows, &WindowSelector::Executable("MAPLESTORY.EXE".into()), 0).unwrap().handle, 1);
         assert!(pick_window(&windows, &WindowSelector::Title("zelda".into()), 0).is_none());
+        // A console whose title is the command that names the game is not the game.
+        let mut console = win(3, "syrup live --window \"Dungeon 3D\"", "conhost.exe", true, 1000, 600);
+        console.class = "ConsoleWindowClass".into();
+        let windows = vec![
+            console,
+            win(4, "Dungeon 3D - old save", "dungeon3d.exe", false, 400, 300),
+            win(5, "Dungeon 3D", "dungeon3d.exe", false, 960, 540),
+        ];
+        assert_eq!(pick_window(&windows, &WindowSelector::Title("Dungeon 3D".into()), 0).unwrap().handle, 5);
         assert!(is_excluded(&win(9, "tiny", "game.exe", false, 100, 80), 0));
     }
 }

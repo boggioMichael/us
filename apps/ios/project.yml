@@ -24,7 +24,8 @@ settings:
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"
     SYRUP_BUNDLE_ID: com.boggiomichael.syrup
-    SYRUP_SERVER_URL: ""
+    # The brain render.yaml deploys; a build can point elsewhere (SYRUP_SERVER_URL).
+    SYRUP_SERVER_URL: https://syrup-brain-boggio.onrender.com
     SYRUP_TOKEN: ""
 targets:
   Syrup:

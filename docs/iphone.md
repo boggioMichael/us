@@ -45,9 +45,9 @@ gets every build.
 sign in with GitHub, and press **Apply**; Render asks for a card for the
 Starter plan. `render.yaml` sets the rest: the brain in Frankfurt, with a
 1 GB disk for what it learns. The first build takes about ten minutes; each
-push to the branch rebuilds it. Its address, `https://syrup-brain….onrender.com`,
-is at the top of the service's page on Render: that's the
-`SYRUP_SERVER_URL` (step 3).
+push to the branch rebuilds it. Its address is
+`https://syrup-brain-boggio.onrender.com`, which the app uses unless a
+build is told otherwise.
 
 **On a Windows PC instead** (free; the PC has to be on while you play, and
 Smart App Control has to be off, since it blocks programs it doesn't know):
@@ -100,7 +100,7 @@ once for each:
 | `ASC_ISSUER_ID` | the Issuer ID |
 | `ASC_KEY_P8` | the whole `.p8` file, opened in Notepad |
 | `APPLE_TEAM_ID` | the Team ID |
-| `SYRUP_SERVER_URL` | the brain's address (on Render: at the top of the service's page) |
+| `SYRUP_SERVER_URL` | only if the brain isn't at `https://syrup-brain-boggio.onrender.com` |
 | `SYRUP_TOKEN` | only for a hosted brain with a token |
 
 From then on, every push builds the app and uploads it to TestFlight

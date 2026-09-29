@@ -69,7 +69,7 @@ jobs:
         id: ready
         run: |
           missing=""
-          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID SYRUP_SERVER_URL; do
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID; do
             [ -n "${!v}" ] || missing="$missing $v"
           done
           if [ -n "$missing" ]; then
@@ -112,7 +112,7 @@ jobs:
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Syrup.xcarchive" \
             CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            SYRUP_SERVER_URL="$SYRUP_SERVER_URL" SYRUP_TOKEN="$SYRUP_TOKEN" \
+            ${SYRUP_SERVER_URL:+SYRUP_SERVER_URL="$SYRUP_SERVER_URL"} SYRUP_TOKEN="$SYRUP_TOKEN" \
             archive > archive.log 2>&1 || { grep -E "error: " archive.log | sort -u | head -20; tail -30 archive.log; exit 1; }
           echo "archived build $BUILD_NUMBER"
       - name: Sign and upload to TestFlight

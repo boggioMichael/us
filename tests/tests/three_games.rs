@@ -26,18 +26,29 @@ fn syrup_learns_three_different_games_and_remembers_them() {
         .unwrap_or_else(|e| std::panic::resume_unwind(e));
 }
 
+/// The measurements, kept where CI can show them (target/tmp/syrup-e2e.txt).
+fn report(line: &str) {
+    eprintln!("{line}");
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("syrup-e2e.txt");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        use std::io::Write;
+        let _ = writeln!(f, "{line}");
+    }
+}
+
 fn three_games() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path();
     let with_ocr = has_ocr();
-    eprintln!("OCR: {}", ocr().name());
+    let _ = std::fs::remove_file(std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("syrup-e2e.txt"));
+    report(&format!("OCR: {}", ocr().name()));
     let mut ids = Vec::new();
 
     // --- First sessions: nothing known. ---
     // A first-person dungeon: a health bar, counters, a minimap, motion everywhere.
     let mut rt = runtime(data, ocr(), None);
     let d = play(&mut rt, GameKind::Dungeon, 1, 70.0);
-    eprintln!("{}", d.describe("dungeon"));
+    report(&d.describe("dungeon"));
     assert_eq!(rt.identity().unwrap().title, "Dungeon 3D");
     ids.push(rt.identity().unwrap().game_id.clone());
     // Without text (or with an engine that does not read the lone "HP" beside
@@ -56,7 +67,7 @@ fn three_games() {
     // a death dialog, a level-up; looked up (from recorded pages) as it starts.
     let mut rt = runtime(data, ocr(), Some(&fixtures()));
     let s = play(&mut rt, GameKind::Scroller, 1, 75.0);
-    eprintln!("{}", s.describe("scroller"));
+    report(&s.describe("scroller"));
     ids.push(rt.identity().unwrap().game_id.clone());
     for (concept, coverage) in [("health", 0.7), ("experience", 0.7), ("mana", if reads_labels { 0.6 } else { 0.2 })] {
         let c = &s.score.concepts[concept];
@@ -81,7 +92,7 @@ fn three_games() {
     // A card game: menus, a still table, a turn timer, results.
     let mut rt = runtime(data, ocr(), None);
     let c = play(&mut rt, GameKind::Cards, 1, 60.0);
-    eprintln!("{}", c.describe("cards"));
+    report(&c.describe("cards"));
     assert_eq!(rt.identity().unwrap().title, "High Card Duel");
     ids.push(rt.identity().unwrap().game_id.clone());
     assert_eq!(c.report.summary.victories as usize, c.happened.wins, "cards: wins");

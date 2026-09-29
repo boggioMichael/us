@@ -54,6 +54,9 @@ jobs:
           echo "::notice title=windows ocr::$(grep -a 'windows ocr' wocr.log | head -1 | sed 's/%/%25/g')"
       - name: Tests (unit, program, end to end on three games)
         run: set -o pipefail; cargo test --workspace 2>&1 | tee test.log || { tools/ci-annotate.sh test.log "tests"; exit 1; }
+      - name: Three games, measured
+        if: always()
+        run: test -f target/tmp/syrup-e2e.txt && echo "::notice title=three games (${{ runner.os }})::$(awk 'BEGIN { ORS = "%0A" } { gsub(/%/, "%25"); print }' target/tmp/syrup-e2e.txt)" || true
       - name: Release build
         run: set -o pipefail; cargo build --release -p syrup-desktop 2>&1 | tee release.log || { tools/ci-annotate.sh release.log "release build"; exit 1; }
       - name: Draw Syrup

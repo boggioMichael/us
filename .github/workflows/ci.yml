@@ -7,7 +7,10 @@ on:
   workflow_dispatch:
 
 env:
-  CARGO_TERM_COLOR: always
+  CARGO_TERM_COLOR: never
+
+# Every step that can fail turns its errors into annotations
+# (tools/ci-annotate.sh), so a red run says why on its page.
 
 jobs:
   check:
@@ -17,6 +20,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,21 +38,26 @@ jobs:
       - name: Install Tesseract (macOS)
         if: runner.os == 'macOS'
         run: brew install tesseract
+      - name: Versions
+        run: rustc --version && cargo clippy --version && (tesseract --version 2>&1 | head -1 || true)
       - name: Formatting
         if: runner.os == 'Linux'
-        run: cargo fmt --check
+        run: cargo fmt --check 2>&1 | tee fmt.log || { echo "::error title=cargo fmt::$(head -c 3000 fmt.log | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"; exit 1; }
       - name: Lints
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: set -o pipefail; cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log || { tools/ci-annotate.sh clippy.log "clippy"; exit 1; }
       - name: Tests (unit, program, end to end on three games)
-        run: cargo test --workspace
+        run: set -o pipefail; cargo test --workspace 2>&1 | tee test.log || { tools/ci-annotate.sh test.log "tests"; exit 1; }
       - name: Release build
-        run: cargo build --release -p syrup-desktop
+        run: set -o pipefail; cargo build --release -p syrup-desktop 2>&1 | tee release.log || { tools/ci-annotate.sh release.log "release build"; exit 1; }
       - name: Draw Syrup
-        run: cargo run --release -p syrup-desktop --bin syrup -- avatar --out avatar
+        run: ./target/release/syrup avatar --out avatar
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: syrup-avatar-${{ matrix.os }}
-          path: avatar
+          name: logs-and-avatar-${{ matrix.os }}
+          path: |
+            avatar
+            *.log
 
   devtools:
     name: Devtools page compiles and is up to date
@@ -73,11 +84,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build --release -p syrup-desktop
+        shell: bash
+        run: set -o pipefail; cargo build --release -p syrup-desktop 2>&1 | tee build.log || { tools/ci-annotate.sh build.log "build"; exit 1; }
       - name: Watch the dungeon live
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          function Fail($why) {
+            $tail = (Get-Content out\live.log -ErrorAction SilentlyContinue | Select-Object -Last 25) -join "%0A"
+            Write-Output "::error title=live run::$why%0A$tail"
+            exit 1
+          }
           New-Item -ItemType Directory -Force out, games | Out-Null
           # Named like a real game's executable, the test game is "Dungeon 3D" to Windows.
           Copy-Item target\release\syrup-testgame.exe games\dungeon3d.exe
@@ -85,38 +101,46 @@ jobs:
           Start-Sleep -Seconds 5
           target\release\syrup.exe windows | Tee-Object out\windows.txt
           target\release\syrup.exe live --window "Dungeon 3D" --seconds 50 --no-voice --no-research --overlay-dir out\overlay --data-dir out\data --json 2> out\live.log > out\summary.json
+          $code = $LASTEXITCODE
           Get-Content out\live.log
           Get-Content out\summary.json
+          if ($code -ne 0) { Fail "syrup live exited with $code" }
           $s = Get-Content out\summary.json -Raw | ConvertFrom-Json
-          if ($s.title -ne "Dungeon 3D") { throw "the game was not recognised: $($s.title)" }
-          if ($s.analysed_frames -lt 40) { throw "only $($s.analysed_frames) frames analysed" }
+          if ($s.title -ne "Dungeon 3D") { Fail "the game was not recognised: '$($s.title)'" }
+          if ($s.analysed_frames -lt 40) { Fail "only $($s.analysed_frames) frames analysed" }
           $profile = Get-ChildItem out\data\games -Recurse -Filter profile.json | Select-Object -First 1
+          if (-not $profile) { Fail "no profile saved" }
           $p = Get-Content $profile.FullName -Raw | ConvertFrom-Json
-          if ($p.known_ui_elements.Count -lt 1) { throw "no interface learned" }
-          if (-not ($p.executables -contains "dungeon3d.exe")) { throw "executable not learned: $($p.executables)" }
-          if ((Get-ChildItem out\overlay -Filter *.png).Count -lt 1) { throw "no overlay pictures" }
+          if ($p.known_ui_elements.Count -lt 1) { Fail "no interface learned" }
+          if (-not ($p.executables -contains "dungeon3d.exe")) { Fail "executable not learned: $($p.executables)" }
+          if ((Get-ChildItem out\overlay -Filter *.png -ErrorAction SilentlyContinue).Count -lt 1) { Fail "no overlay pictures" }
           $timeline = Get-ChildItem out\data\sessions -Recurse -Filter timeline.jsonl | Select-Object -First 1
-          $learned = Select-String -Path $timeline.FullName -Pattern '"concept_learned"' | Measure-Object
-          Write-Host "concepts learned: $($learned.Count)"
-          if ($learned.Count -lt 1) { throw "nothing learned about the interface" }
+          $learned = (Select-String -Path $timeline.FullName -Pattern '"concept_learned"' | Measure-Object).Count
+          Write-Output "concepts learned: $learned"
+          if ($learned -lt 1) { Fail "nothing learned about the interface" }
           Stop-Process -Id $game.Id -ErrorAction SilentlyContinue
-      - name: Second session remembers the game
+      - name: A second session remembers the game
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
           $game = Start-Process -FilePath games\dungeon3d.exe -ArgumentList "--seconds", "40", "--seed", "5" -PassThru
           Start-Sleep -Seconds 4
           target\release\syrup.exe live --exe dungeon3d.exe --seconds 15 --no-voice --no-research --data-dir out\data 2> out\live2.log > out\said2.txt
           Get-Content out\live2.log
           Get-Content out\said2.txt
-          if (-not (Select-String -Path out\said2.txt -Pattern "again" -Quiet)) { throw "Syrup did not remember the game" }
+          if (-not (Select-String -Path out\said2.txt -Pattern "again" -Quiet)) {
+            $said = (Get-Content out\said2.txt) -join "%0A"
+            Write-Output "::error title=second session::Syrup did not say it remembered the game.%0A$said"
+            exit 1
+          }
           target\release\syrup.exe profiles --data-dir out\data | Tee-Object out\profiles.txt
           Stop-Process -Id $game.Id -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: live-windows
-          path: out
+          path: |
+            out
+            *.log
 
   research-live:
     name: Research against the real web (informational)
@@ -135,6 +159,7 @@ jobs:
             ./target/release/syrup research "$game" --data-dir research-data | tee -a research.txt || true
           done
           ./target/release/syrup research "Hollow Knight" --topic "Hornet" --data-dir research-data | tee -a research.txt || true
+          echo "::notice title=research::$(grep -c '^- ' research.txt) facts found"
       - uses: actions/upload-artifact@v4
         with:
           name: research-live

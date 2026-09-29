@@ -15,6 +15,7 @@
 //! Capture only ever reads pixels. Nothing in this crate sends input to any
 //! window.
 
+mod cropped;
 mod folder;
 mod memory;
 mod video;
@@ -25,6 +26,7 @@ mod window;
 use std::fmt;
 use std::sync::Arc;
 
+pub use cropped::{Cropped, crop_frame};
 pub use folder::FolderSource;
 pub use memory::MemorySource;
 use syrup_core::{Frame, SourceInfo};

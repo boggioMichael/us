@@ -212,8 +212,11 @@ impl SceneTracker {
             events.push(ObservedEvent::Flash { brightness_delta: m.brightness - p.brightness });
         }
         let warmed = self.analysed > 3;
-        let drained = warmed && self.sat_avg > 0.1 && m.saturation < self.sat_avg * 0.45;
-        let reddened = warmed && m.red_tint > self.red_avg + 0.08;
+        // A screen fading to black is a transition (a new map, a loading
+        // screen), not a death: a death screen keeps the scene visible.
+        let visible = m.brightness > 0.08 && m.detail > 0.01;
+        let drained = warmed && visible && self.sat_avg > 0.1 && m.saturation < self.sat_avg * 0.45;
+        let reddened = warmed && visible && m.red_tint > self.red_avg + 0.08;
         // A hit flashes red while everything moves; a death screen goes red or
         // grey and holds still.
         let death_look = (drained || reddened) && m.change < 0.05;

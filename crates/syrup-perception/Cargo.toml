@@ -11,6 +11,7 @@ syrup-core.workspace = true
 syrup-paint.workspace = true
 syrup.workspace = true
 image.workspace = true
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

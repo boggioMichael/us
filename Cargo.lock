@@ -1003,6 +1003,7 @@ name = "syrup-perception"
 version = "0.1.0"
 dependencies = [
  "image",
+ "regex",
  "serde",
  "serde_json",
  "syrup",

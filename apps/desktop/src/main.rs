@@ -22,10 +22,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
-use syrup_capture::{FrameSource, WindowSelector};
+use syrup_capture::{Capture, Cropped, FrameSource, WindowSelector};
 use syrup_coach::SpoilerPolicy;
 use syrup_core::paths::DataDir;
-use syrup_core::{Event, Expression, Hat};
+use syrup_core::{Event, Expression, Hat, Rect};
 use syrup_knowledge::{Cached, Curl, Fetcher, Fixtures, KnowledgeGraph, ResearchAgent, ResearchQuestion};
 use syrup_memory::MemoryStore;
 use syrup_runtime::devtools::Devtools;
@@ -136,6 +136,16 @@ fn run_args(c: Command) -> Command {
     .arg(Arg::new("explain").long("explain").action(ArgAction::SetTrue).help("Print what Syrup notices as it happens"))
 }
 
+fn crop_args(c: Command) -> Command {
+    c.arg(Arg::new("crop").long("crop").value_name("X,Y,W,H").help("Only this part of each frame is the game")).arg(
+        Arg::new("no-crop")
+            .long("no-crop")
+            .action(ArgAction::SetTrue)
+            .conflicts_with("crop")
+            .help("Don't look for a taskbar to cut off"),
+    )
+}
+
 fn data_arg(c: Command) -> Command {
     c.arg(
         Arg::new("data-dir")
@@ -153,7 +163,7 @@ fn cli() -> Command {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
-            run_args(Command::new("live").about("Watch a game live and coach (Windows)"))
+            crop_args(run_args(Command::new("live").about("Watch a game live and coach (Windows)")))
                 .arg(
                     Arg::new("window").long("window").value_name("TITLE").help("The window whose title contains TITLE"),
                 )
@@ -182,10 +192,10 @@ fn cli() -> Command {
                 .arg(Arg::new("no-voice").long("no-voice").action(ArgAction::SetTrue).help("Don't speak")),
         )
         .subcommand(
-            run_args(
+            crop_args(run_args(
                 Command::new("replay")
                     .about("Run a recording (a video, a folder of screenshots, an image) through Syrup"),
-            )
+            ))
             .arg(Arg::new("path").required(true).value_parser(value_parser!(PathBuf)))
             .arg(
                 Arg::new("fps")
@@ -502,6 +512,52 @@ fn print_summary(rt: &Runtime, r: &LiveReport) {
     }
 }
 
+fn parse_rect(spec: &str) -> Result<Rect, String> {
+    let bad = || format!("--crop takes X,Y,W,H, not \"{spec}\"");
+    let n: Vec<i64> = spec.split(',').map(|p| p.trim().parse::<i64>()).collect::<Result<_, _>>().map_err(|_| bad())?;
+    match n[..] {
+        [x, y, w, h] if w > 0 && h > 0 => Ok(Rect::new(x as i32, y as i32, w as u32, h as u32)),
+        _ => Err(bad()),
+    }
+}
+
+/// A recording of the whole screen (or the live screen) shows the taskbar
+/// under the game: find it on the first frame and cut it off (or cut where
+/// `--crop` says).
+fn game_only(
+    m: &ArgMatches,
+    mut source: Box<dyn FrameSource>,
+    ocr: &Arc<dyn syrup_perception::OcrEngine>,
+) -> Result<Box<dyn FrameSource>, String> {
+    if let Some(spec) = m.get_one::<String>("crop") {
+        return Ok(Box::new(Cropped::new(source, parse_rect(spec)?)));
+    }
+    if m.get_flag("no-crop") {
+        return Ok(source);
+    }
+    let mut tries = 0;
+    let first = loop {
+        match source.next().map_err(|e| e.to_string())? {
+            Capture::Frame(f) => break f,
+            Capture::Waiting(why) if tries < 50 => {
+                tries += 1;
+                if tries == 1 {
+                    eprintln!("waiting: {why}");
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            Capture::Waiting(why) => return Err(why),
+            Capture::Ended => return Err("there are no frames".into()),
+        }
+    };
+    let full = Rect::new(0, 0, first.width(), first.height());
+    let area = syrup_perception::chrome::game_area(&first.image, &**ocr);
+    if let Some(r) = area {
+        eprintln!("the taskbar is in the picture: watching the {}x{} above it (--no-crop keeps it)", r.w, r.h);
+    }
+    Ok(Box::new(Cropped::with_first(source, area.unwrap_or(full), first)))
+}
+
 fn live(m: &ArgMatches) -> Result<(), String> {
     syrup_capture::init_process();
     let fps = *m.get_one::<f32>("fps").unwrap_or(&8.0);
@@ -517,6 +573,9 @@ fn live(m: &ArgMatches) -> Result<(), String> {
         Box::new(syrup_capture::WindowSource::new(selector, fps).map_err(|e| e.to_string())?)
     };
     let cfg = config(m, true)?;
+    if m.get_flag("screen") || m.get_one::<String>("crop").is_some() {
+        source = game_only(m, source, &cfg.ocr)?;
+    }
     let stop = Arc::new(AtomicBool::new(false));
     stop_on_enter(stop.clone());
     eprintln!("Press Enter to stop.");
@@ -539,7 +598,7 @@ fn replay(m: &ArgMatches) -> Result<(), String> {
     let width = m.get_one::<u32>("width").copied();
     let start = m.get_one::<f64>("start").copied();
     let seconds = m.get_one::<f64>("seconds").copied();
-    let mut source: Box<dyn FrameSource> = if path.is_file() && start.is_some() && !is_image(path) {
+    let source: Box<dyn FrameSource> = if path.is_file() && start.is_some() && !is_image(path) {
         // Decode only the part asked for.
         let mut v = syrup_capture::VideoSource::open_at(
             path,
@@ -564,6 +623,7 @@ fn replay(m: &ArgMatches) -> Result<(), String> {
         }
     };
     let cfg = config(m, false)?;
+    let mut source = game_only(m, source, &cfg.ocr)?;
     let realtime = m.get_flag("realtime");
     let stop = Arc::new(AtomicBool::new(false));
     if realtime {

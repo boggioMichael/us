@@ -18,6 +18,7 @@
 
 pub mod annotate;
 pub mod bars;
+pub mod chrome;
 pub mod motion;
 pub mod pixels;
 pub mod regions;

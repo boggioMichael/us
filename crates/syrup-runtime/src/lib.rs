@@ -712,7 +712,11 @@ impl Runtime {
     fn switch_game(&mut self, identity: GameIdentity, cues: &IdentityCues, now: u64) {
         self.save_all();
         let id = identity.game_id.clone();
-        let mut profile = self.memory.load_profile(&id).unwrap_or_else(|| new_profile(&identity, cues));
+        let stored = self.memory.load_profile(&id);
+        // A profile made in this session is not evidence that the game was seen
+        // before: it takes part in recognition from the next session on.
+        let seen_before = stored.is_some();
+        let mut profile = stored.unwrap_or_else(|| new_profile(&identity, cues));
         if let Some(exe) = &cues.executable
             && !profile.executables.iter().any(|x| x.eq_ignore_ascii_case(exe))
         {
@@ -786,8 +790,10 @@ impl Runtime {
         });
         self.announcements.push(Announcement::Game { identity: identity.clone(), first_time });
         let overview_known = graph.researched.iter().any(|r| r.question == identity.title && r.ok);
-        self.profiles.retain(|p| p.game_id != id);
-        self.profiles.push(profile.clone());
+        if seen_before {
+            self.profiles.retain(|p| p.game_id != id);
+            self.profiles.push(profile.clone());
+        }
         self.profile = Some(profile);
         self.knowledge = Some(graph);
         self.identity = Some(identity);

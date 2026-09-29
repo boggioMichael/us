@@ -167,7 +167,11 @@ impl Track {
         };
         for (label, n) in &self.labels {
             if let Some(c) = concept_for_label(label) {
-                add(c, 1.2 + 0.1 * (*n as f32).min(5.0).ln_1p(), format!("labelled \"{}\"", label.to_uppercase()));
+                // Two letters ("HP", "EN") are also what OCR makes of noise: they
+                // count fully once they have been read a few times.
+                let reads = (*n as f32).min(5.0);
+                let w = if label.chars().count() <= 2 { 0.5 + 0.15 * reads } else { 1.2 + 0.1 * reads.ln_1p() };
+                add(c, w, format!("labelled \"{}\"", label.to_uppercase()));
             }
         }
         if self.is_bar {
@@ -178,9 +182,16 @@ impl Track {
             if n.w > 0.7 && n.h < 0.03 && (n.y < 0.06 || n.y + n.h > 0.94) {
                 add("experience", 0.45, "thin bar across the whole screen edge".into());
             }
-            let (cx, _) = n.center();
+            let (cx, cy) = n.center();
             if n.y < 0.15 && (0.3..0.7).contains(&cx) && n.w > 0.25 {
                 add("boss_health", 0.4, "wide bar at the top centre".into());
+            }
+            // The player's own gauges sit along the edges; a bar in the middle of
+            // the picture belongs to something in the world (an enemy, an effect).
+            if (0.2..0.8).contains(&cx) && (0.18..0.78).contains(&cy) {
+                for c in ["health", "mana", "stamina", "energy", "shield", "experience"] {
+                    add(c, -0.5, "in the middle of the screen".into());
+                }
             }
         }
         match self.reading {

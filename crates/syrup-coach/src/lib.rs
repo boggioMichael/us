@@ -283,7 +283,8 @@ impl CoachEngine {
             ("stamina", 0.12, 0.04),
             ("energy", 0.12, 0.04),
         ] {
-            let Some(c) = s.concept(name).filter(|c| c.confidence.at_least(0.5)) else { continue };
+            // Warn only about what Syrup is fairly sure it is reading.
+            let Some(c) = s.concept(name).filter(|c| c.confidence.at_least(0.6)) else { continue };
             let Some(f) = c.fraction() else { continue };
             if !playing || f > low {
                 continue;

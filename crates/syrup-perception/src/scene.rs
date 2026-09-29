@@ -192,6 +192,9 @@ pub struct SceneTracker {
     red_avg: f32,
     drained: bool,
     analysed: u32,
+    /// When the screen was last (nearly) black: coming back from black passes
+    /// through dim, grey frames that look like a death screen and are not.
+    last_dark_ms: Option<u64>,
 }
 
 impl SceneTracker {
@@ -217,9 +220,13 @@ impl SceneTracker {
         let visible = m.brightness > 0.08 && m.detail > 0.01;
         let drained = warmed && visible && self.sat_avg > 0.1 && m.saturation < self.sat_avg * 0.45;
         let reddened = warmed && visible && m.red_tint > self.red_avg + 0.08;
+        if m.brightness <= 0.08 {
+            self.last_dark_ms = Some(f.now_ms);
+        }
+        let after_dark = self.last_dark_ms.is_some_and(|t| f.now_ms.saturating_sub(t) < 3000);
         // A hit flashes red while everything moves; a death screen goes red or
         // grey and holds still.
-        let death_look = (drained || reddened) && m.change < 0.05;
+        let death_look = (drained || reddened) && m.change < 0.05 && !after_dark;
         if death_look && !self.drained {
             events.push(ObservedEvent::ColorDrain { red: m.red_tint, saturation: m.saturation });
         }

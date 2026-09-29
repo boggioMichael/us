@@ -35,6 +35,9 @@ pub struct ElementHint {
     pub confidence: f32,
     /// The player said so: final.
     pub corrected: bool,
+    /// Where it comes from, as evidence reads it: "learned in an earlier
+    /// session", "the MapleStory plugin says so".
+    pub from: String,
 }
 
 /// A concept newly believed with enough confidence to remember.
@@ -82,7 +85,7 @@ struct Track {
     last_ms: u64,
     behavior: BTreeMap<&'static str, f32>,
     reasons: BTreeMap<&'static str, Vec<String>>,
-    hint: Option<(String, f32, bool)>,
+    hint: Option<(String, f32, bool, String)>,
     step_times: VecDeque<(u64, f64)>,
     announced: Option<String>,
 }
@@ -202,15 +205,11 @@ impl Track {
             Some(ReadingKind::Ratio) if !self.is_bar => add("health", 0.1, "reads as current/maximum".into()),
             _ => {}
         }
-        if let Some((c, conf, corrected)) = &self.hint
+        if let Some((c, conf, corrected, from)) = &self.hint
             && let Some(spec) = spec(c)
         {
             let w = if *corrected { 6.0 } else { 0.4 + 0.8 * conf };
-            add(
-                spec.name,
-                w,
-                if *corrected { "the player said so".into() } else { "learned in an earlier session".into() },
-            );
+            add(spec.name, w, if *corrected { "the player said so".into() } else { from.clone() });
         }
         for (c, w) in &self.behavior {
             let why = self.reasons.get(c).cloned().unwrap_or_default();
@@ -391,12 +390,12 @@ impl StateEngine {
         self.absent = absent;
     }
 
-    fn hint_for(&self, norm: &NormRect, is_bar: bool) -> Option<(String, f32, bool)> {
+    fn hint_for(&self, norm: &NormRect, is_bar: bool) -> Option<(String, f32, bool, String)> {
         self.hints
             .iter()
             .filter(|h| (h.kind == "bar") == is_bar && same_place(&h.norm, norm, is_bar))
             .max_by(|a, b| a.corrected.cmp(&b.corrected).then(a.confidence.total_cmp(&b.confidence)))
-            .map(|h| (h.concept.clone(), h.confidence, h.corrected))
+            .map(|h| (h.concept.clone(), h.confidence, h.corrected, h.from.clone()))
     }
 
     fn transition(
@@ -885,6 +884,20 @@ impl StateEngine {
                 }
             }
         }
+        // What is already known (a plugin, an earlier session, the player) puts a
+        // concept on one element: a look-alike elsewhere must beat it clearly.
+        let mut known_best: BTreeMap<&'static str, f32> = BTreeMap::new();
+        for (conf, key, c, _) in &options {
+            let hinted = self.tracks.get(key).and_then(|t| t.hint.as_ref()).is_some_and(|h| h.0 == *c);
+            if hinted {
+                let e = known_best.entry(c).or_insert(0.0);
+                *e = e.max(*conf);
+            }
+        }
+        options.retain(|(conf, key, c, _)| {
+            let hinted = self.tracks.get(key).and_then(|t| t.hint.as_ref()).is_some_and(|h| h.0 == *c);
+            hinted || known_best.get(c).is_none_or(|best| *conf > best + 0.3)
+        });
         options.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
         let mut taken_tracks: Vec<String> = Vec::new();
         let mut assigned: BTreeMap<String, String> = BTreeMap::new();

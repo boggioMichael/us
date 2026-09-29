@@ -160,6 +160,7 @@ impl GamePlugin for DataPlugin {
                 concept: e.concept.clone(),
                 confidence: e.confidence,
                 corrected: false,
+                from: format!("the {} plugin says so", self.spec.name),
             })
             .collect()
     }

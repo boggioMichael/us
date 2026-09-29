@@ -292,6 +292,10 @@ pub fn hints(p: &GameProfile) -> Vec<ElementHint> {
                 concept: c.clone(),
                 confidence: e.confidence.value(),
                 corrected: e.corrected,
+                from: match e.origin.strip_prefix("plugin:") {
+                    Some(p) => format!("the {p} plugin says so"),
+                    None => "learned in an earlier session".into(),
+                },
             })
         })
         .collect()

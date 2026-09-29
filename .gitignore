@@ -12,3 +12,8 @@ __pycache__/
 /eval/
 /dump/
 /apps/devtools/node_modules/
+# The iPhone project is generated from apps/ios/project.yml (xcodegen)
+/apps/ios/*.xcodeproj/
+/apps/ios/Syrup/Info.plist
+/apps/ios/SyrupEyes/Info.plist
+/apps/ios/build/

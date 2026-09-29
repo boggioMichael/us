@@ -9,7 +9,9 @@
 //! OCR can too; nothing on this path waits for the network.
 
 pub mod devtools;
+mod http;
 pub mod live;
+pub mod server;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io;

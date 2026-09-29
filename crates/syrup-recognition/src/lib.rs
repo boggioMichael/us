@@ -181,6 +181,20 @@ impl Recognizer {
                 }
             }
         }
+        // A game the player named that nothing here knows yet (a phone game,
+        // say) is a candidate of its own, named as the player named it.
+        if let Some((id, title)) = &self.confirmed
+            && !candidates.iter().any(|c| c.id == *id)
+        {
+            candidates.push(Candidate {
+                id: id.clone(),
+                title: title.clone(),
+                names: vec![normalize_words(title)],
+                executables: Vec::new(),
+                learned_titles: Vec::new(),
+                hud: Vec::new(),
+            });
+        }
         let exe = cues.executable.as_deref().map(exe_key);
         let title = cues.window_title.as_deref().map(normalize_words).unwrap_or_default();
         let steam = cues.executable_path.as_deref().and_then(steam_folder).map(|s| normalize_words(&s));
@@ -434,5 +448,23 @@ mod tests {
         assert_eq!(b.best.version.as_deref(), Some("1.5.78"));
         r.confirm("hollow-knight", "Hollow Knight");
         assert!(r.recognize(&c, &[]).best.confirmed);
+    }
+
+    #[test]
+    fn a_game_the_player_names_is_that_game_even_if_nothing_knows_it() {
+        // A phone's screen: no window title, no executable.
+        let blank = IdentityCues {
+            window_title: None,
+            executable: None,
+            executable_path: None,
+            screen_text: Vec::new(),
+            hud: Vec::new(),
+        };
+        let mut r = Recognizer::new();
+        assert_eq!(r.recognize(&blank, &[]).best.title, "this game");
+        r.confirm("pocket-dungeon", "Pocket Dungeon");
+        let got = r.recognize(&blank, &[]);
+        assert_eq!((got.best.game_id.as_str(), got.best.title.as_str()), ("pocket-dungeon", "Pocket Dungeon"));
+        assert!(got.best.confirmed && got.is_confident());
     }
 }

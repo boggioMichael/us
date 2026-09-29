@@ -20,6 +20,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # the Windows build is published as a release (below)
     defaults:
       run:
         shell: bash
@@ -61,6 +63,28 @@ jobs:
         run: set -o pipefail; cargo build --release -p syrup-desktop 2>&1 | tee release.log || { tools/ci-annotate.sh release.log "release build"; exit 1; }
       - name: Draw Syrup
         run: ./target/release/syrup avatar --out avatar
+      # For running Syrup's brain on a Windows PC (the phone app's server):
+      # syrup.exe and a double-click launcher, on one release page that
+      # every push to this branch updates.
+      - name: Publish the Windows build
+        if: runner.os == 'Windows' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p publish
+          cp target/release/syrup.exe publish/
+          cp "tools/windows/Start Syrup.cmd" publish/
+          (cd publish && 7z a -tzip ../syrup-windows.zip syrup.exe "Start Syrup.cmd" > /dev/null)
+          tag="syrup-windows-${GITHUB_REF_NAME//\//-}"
+          notes="Syrup for Windows, built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Unzip, then double-click Start Syrup.cmd to run the phone app's brain (docs/iphone.md)."
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release edit "$tag" --notes "$notes"
+          else
+            gh release create "$tag" --prerelease --target "$GITHUB_SHA" --title "Syrup for Windows ($GITHUB_REF_NAME)" --notes "$notes"
+          fi
+          gh release upload "$tag" syrup-windows.zip --clobber
+          echo "::notice title=Windows build::https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/syrup-windows.zip"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -101,6 +125,42 @@ jobs:
         run: tsc -p tsconfig.json
       - name: The committed page is what the source compiles to
         run: git diff --exit-code -- apps/devtools/dist
+
+  server-image:
+    name: The phone app's server builds and answers (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build the image
+        run: docker build -t syrup-server . 2>&1 | tail -40
+      - name: Run it, and be a phone for a moment
+        run: |
+          set -eu
+          docker run -d --name syrup -p 8080:8080 -e SYRUP_TOKEN=ci-token syrup-server
+          for i in $(seq 1 30); do curl -sf localhost:8080/healthz && break; sleep 1; done
+          echo
+          code=$(curl -s -o /dev/null -w '%{http_code}' 'localhost:8080/v1/say?device=ci-phone')
+          test "$code" = 401 || { echo "::error title=server::a request without the token got $code"; exit 1; }
+          auth='Authorization: Bearer ci-token'
+          curl -sf -H "$auth" -X POST --data '{"title":"Dungeon 3D"}' 'localhost:8080/v1/game?device=ci-phone'
+          echo
+          for i in 1 2 3; do
+            curl -sf -H "$auth" --data-binary @assets/syrup/avatar.json 'localhost:8080/v1/frame?device=ci-phone' -o /dev/null -w '%{http_code} ' || true
+          done
+          curl -sf -H "$auth" --data-binary @docs/images/hats.png "localhost:8080/v1/frame?device=ci-phone&t=0" | tee frame.json
+          echo
+          grep -q '"interval_ms"' frame.json
+          curl -sf -H "$auth" -X POST 'localhost:8080/v1/end?device=ci-phone'
+          echo
+          curl -sf -H "$auth" 'localhost:8080/v1/say?device=ci-phone&after=0' | tee said.json
+          echo
+          grep -q '"end":true' said.json || { echo "::error title=server::no summary after the session ended"; exit 1; }
+          echo "::notice title=server::$(sed 's/%/%25/g' said.json)"
+      - name: Server log
+        if: always()
+        run: docker logs syrup 2>&1 | tail -50 || true
 
   live-windows:
     name: Live on Windows (a test game in a real window)

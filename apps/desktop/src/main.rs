@@ -9,6 +9,7 @@
 //! syrup forget GAME | --player | --recordings | --sessions | --everything
 //! syrup avatar [--out DIR]                             Syrup's hats, faces and overlay, as pictures
 //! syrup windows                                        the windows Syrup could watch (Windows)
+//! syrup serve [--port P]                               be the brain for the phone app (docs/iphone.md)
 //! ```
 //!
 //! Syrup only ever reads pixels. It never sends input to a game, never reads
@@ -30,6 +31,7 @@ use syrup_knowledge::{Cached, Curl, Fetcher, Fixtures, KnowledgeGraph, ResearchA
 use syrup_memory::MemoryStore;
 use syrup_runtime::devtools::Devtools;
 use syrup_runtime::live::{LiveOptions, LiveReport, run_with};
+use syrup_runtime::server::{CaptureAdvice, MakeConfig, Pairing, Server, ServerConfig};
 use syrup_runtime::{Runtime, RuntimeConfig, concept_text, game_for_title};
 use syrup_testgames::score::{Happened, Score};
 use syrup_testgames::{GameKind, Session};
@@ -275,6 +277,73 @@ fn cli() -> Command {
         .subcommand(
             Command::new("windows").about("List the windows Syrup could watch, and which one it would pick (Windows)"),
         )
+        .subcommand(
+            data_arg(Command::new("serve").about(
+                "Be the brain for the phone app: its screen comes in, what to say goes out (token: $SYRUP_TOKEN)",
+            ))
+            .arg(Arg::new("bind").long("bind").default_value("0.0.0.0").help("The address to listen on"))
+            .arg(
+                Arg::new("port")
+                    .long("port")
+                    .value_parser(value_parser!(u16))
+                    .help("The port to listen on [default: $PORT, or 8080]"),
+            )
+            .arg(
+                Arg::new("ocr")
+                    .long("ocr")
+                    .value_name("ENGINE")
+                    .default_value("auto")
+                    .help("Reading text: auto, windows, tesseract, none"),
+            )
+            .arg(Arg::new("no-research").long("no-research").action(ArgAction::SetTrue).help("Never go online"))
+            .arg(
+                Arg::new("plugins")
+                    .long("plugins")
+                    .value_name("DIR")
+                    .value_parser(value_parser!(PathBuf))
+                    .help("Load data plugins (folders with a plugin.json) from DIR"),
+            )
+            .arg(
+                Arg::new("spoilers")
+                    .long("spoilers")
+                    .value_name("LEVEL")
+                    .default_value("normal")
+                    .help("none, hints_only, normal, full_information"),
+            )
+            .arg(
+                Arg::new("quiet-learning")
+                    .long("quiet-learning")
+                    .action(ArgAction::SetTrue)
+                    .help("Don't say what Syrup is learning"),
+            )
+            .arg(
+                Arg::new("pair").long("pair").action(ArgAction::SetTrue).help(
+                    "Let one more phone pair with this server (without $SYRUP_TOKEN, it belongs to the first phone)",
+                ),
+            )
+            .arg(
+                Arg::new("idle")
+                    .long("idle")
+                    .value_name("S")
+                    .value_parser(value_parser!(u64))
+                    .default_value("45")
+                    .help("End a phone's session after this many seconds without a frame"),
+            )
+            .arg(
+                Arg::new("interval-ms")
+                    .long("interval-ms")
+                    .value_parser(value_parser!(u32))
+                    .default_value("500")
+                    .help("Ask phones for a frame at most this often"),
+            )
+            .arg(
+                Arg::new("max-side")
+                    .long("max-side")
+                    .value_parser(value_parser!(u32))
+                    .default_value("960")
+                    .help("Ask phones to scale frames to at most this many pixels on their longer side"),
+            ),
+        )
 }
 
 fn main() -> ExitCode {
@@ -297,6 +366,7 @@ fn run() -> ExitCode {
         Some(("forget", m)) => forget(m),
         Some(("avatar", m)) => avatar(m),
         Some(("windows", _)) => windows(),
+        Some(("serve", m)) => serve(m),
         _ => Err("unknown command".into()),
     };
     match result {
@@ -344,6 +414,66 @@ fn config(m: &ArgMatches, live: bool) -> Result<RuntimeConfig, String> {
     cfg.plugins_dir = m.get_one::<PathBuf>("plugins").cloned();
     cfg.confirm = m.get_one::<String>("game").map(|t| game_for_title(t));
     Ok(cfg)
+}
+
+/// The phone app's brain: one runtime per phone, until the process is stopped.
+fn serve(m: &ArgMatches) -> Result<(), String> {
+    let ocr_name = m.get_one::<String>("ocr").map(|s| s.as_str()).unwrap_or("auto");
+    let ocr = syrup_perception::engine_named(ocr_name)
+        .ok_or_else(|| format!("no OCR engine called \"{ocr_name}\" here (try auto, tesseract, windows or none)"))?;
+    let data = data_dir(m);
+    MemoryStore::open(&data).map_err(|e| format!("could not open the data folder {}: {e}", data.display()))?;
+    let spoilers = m.get_one::<String>("spoilers").map(|s| s.as_str()).unwrap_or("normal");
+    let spoilers = SpoilerPolicy::parse(spoilers).ok_or_else(|| format!("no spoiler level called \"{spoilers}\""))?;
+    let research = !m.get_flag("no-research");
+    let narrate = !m.get_flag("quiet-learning");
+    let plugins = m.get_one::<PathBuf>("plugins").cloned();
+    let engine = ocr.name().to_string();
+    let folder = data.clone();
+    let make: MakeConfig = Arc::new(move |player, confirm| {
+        let mut cfg = RuntimeConfig::new(&folder, ocr.clone());
+        cfg.perception.text.asynchronous = true;
+        cfg.player_id = player.to_string();
+        cfg.research = research;
+        cfg.coach.spoilers = spoilers;
+        cfg.coach.narrate_learning = narrate;
+        cfg.plugins_dir = plugins.clone();
+        cfg.confirm = confirm;
+        cfg
+    });
+    let port = m
+        .get_one::<u16>("port")
+        .copied()
+        .or_else(|| std::env::var("PORT").ok().and_then(|p| p.trim().parse().ok()))
+        .unwrap_or(8080);
+    let token = std::env::var("SYRUP_TOKEN").ok().map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
+    let capture = CaptureAdvice {
+        interval_ms: *m.get_one::<u32>("interval-ms").unwrap_or(&500),
+        max_side: *m.get_one::<u32>("max-side").unwrap_or(&960),
+        ..CaptureAdvice::default()
+    };
+    let bind = m.get_one::<String>("bind").cloned().unwrap_or_else(|| "0.0.0.0".into());
+    let pairing = token.is_none().then(|| Pairing { file: data.join("phones.json"), one_more: m.get_flag("pair") });
+    let server = Server::start(ServerConfig {
+        bind,
+        port,
+        token: token.clone(),
+        pairing,
+        idle: Duration::from_secs(*m.get_one::<u64>("idle").unwrap_or(&45)),
+        capture,
+        make,
+    })
+    .map_err(|e| format!("could not listen on port {port}: {e}"))?;
+    eprintln!(
+        "Syrup server on {} · data: {} · OCR: {engine} · research: {} · token: {}",
+        server.addr,
+        data.display(),
+        if research { "on" } else { "off" },
+        if token.is_some() { "required" } else { "none (it belongs to the first phone that connects)" },
+    );
+    loop {
+        std::thread::park();
+    }
 }
 
 /// Stops the run when the player presses Enter (a closed or missing stdin never stops it).

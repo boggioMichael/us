@@ -20,8 +20,7 @@
 //! as JSON (so another site cannot post to it without the browser asking
 //! first, which this server never allows).
 
-use std::collections::BTreeMap;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -33,6 +32,7 @@ use image::{ImageEncoder, RgbaImage};
 use serde_json::Value;
 use syrup_core::EventBus;
 
+use crate::http::{error, json, read_request, respond};
 use crate::{Command, Shared, game_for_title};
 
 pub const INDEX_HTML: &str = include_str!("../../../apps/devtools/dist/index.html");
@@ -104,72 +104,6 @@ impl Drop for Devtools {
     }
 }
 
-struct Request {
-    method: String,
-    path: String,
-    query: BTreeMap<String, String>,
-    headers: BTreeMap<String, String>,
-    body: Vec<u8>,
-}
-
-fn read_request(stream: &TcpStream) -> io::Result<Request> {
-    let mut reader = BufReader::new(stream);
-    let mut first = String::new();
-    reader.read_line(&mut first)?;
-    let mut parts = first.split_whitespace();
-    let method = parts.next().unwrap_or("").to_string();
-    let target = parts.next().unwrap_or("/").to_string();
-    let mut headers = BTreeMap::new();
-    for _ in 0..100 {
-        let mut line = String::new();
-        if reader.read_line(&mut line)? == 0 {
-            break;
-        }
-        let line = line.trim_end();
-        if line.is_empty() {
-            break;
-        }
-        if let Some((k, v)) = line.split_once(':') {
-            headers.insert(k.trim().to_ascii_lowercase(), v.trim().to_string());
-        }
-    }
-    let len: usize = headers.get("content-length").and_then(|v| v.parse().ok()).unwrap_or(0);
-    if len > MAX_BODY {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "body too large"));
-    }
-    let mut body = vec![0; len];
-    reader.read_exact(&mut body)?;
-    let (path, q) = target.split_once('?').unwrap_or((&target, ""));
-    let query = q
-        .split('&')
-        .filter_map(|kv| {
-            let (k, v) = kv.split_once('=').unwrap_or((kv, ""));
-            (!k.is_empty()).then(|| (k.to_string(), v.to_string()))
-        })
-        .collect();
-    Ok(Request { method, path: path.to_string(), query, headers, body })
-}
-
-fn respond(mut stream: &TcpStream, status: &str, content_type: &str, body: &[u8]) -> io::Result<()> {
-    write!(
-        stream,
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
-        body.len()
-    )?;
-    stream.write_all(body)?;
-    stream.flush()
-}
-
-fn json(stream: &TcpStream, value: &impl serde::Serialize) -> io::Result<()> {
-    let body = serde_json::to_vec(value).unwrap_or_else(|_| b"null".to_vec());
-    respond(stream, "200 OK", "application/json", &body)
-}
-
-fn error(stream: &TcpStream, status: &str, message: &str) -> io::Result<()> {
-    let body = serde_json::json!({ "error": message }).to_string();
-    respond(stream, status, "application/json", body.as_bytes())
-}
-
 /// PNG bytes (large frames are halved first: the page shows them small anyway).
 pub fn png(img: &RgbaImage) -> Vec<u8> {
     let small;
@@ -195,7 +129,7 @@ fn serve(stream: TcpStream, ctx: &Ctx) -> io::Result<()> {
     stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
-    let req = match read_request(&stream) {
+    let req = match read_request(&stream, MAX_BODY) {
         Ok(r) => r,
         Err(_) => return error(&stream, "400 Bad Request", "could not read the request"),
     };
@@ -285,6 +219,7 @@ fn serve(stream: TcpStream, ctx: &Ctx) -> io::Result<()> {
 mod tests {
     use super::*;
     use crate::Snapshot;
+    use std::io::{Read, Write};
     use std::sync::mpsc::channel;
 
     fn request(addr: SocketAddr, raw: &str) -> (String, Vec<u8>) {

@@ -1,0 +1,145 @@
+name: iPhone app
+
+# Compiles the iPhone app on every push. When the Apple key is in the
+# repository's secrets, archives it and uploads it to TestFlight, where it
+# can be installed. See docs/iphone.md.
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Compiles for iPhone (Xcode 26)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode 26
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$x" ]; then echo "::error title=xcode::no Xcode 26 on this runner"; ls -d /Applications/Xcode*; exit 1; fi
+          sudo xcode-select -s "$x"
+          xcodebuild -version
+      - name: Generate the project
+        working-directory: apps/ios
+        run: brew install xcodegen >/dev/null && xcodegen generate
+      - name: Compile (unsigned)
+        working-directory: apps/ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Syrup.xcodeproj -scheme Syrup -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO SYRUP_SERVER_URL=https://syrup.example \
+            build > build.log 2>&1 || true
+          grep -E "(error|warning): " build.log | sort -u | head -40 || true
+          if ! grep -q "BUILD SUCCEEDED" build.log; then
+            grep -E "error: " build.log | sort -u | head -20 | while IFS= read -r l; do echo "::error title=iPhone build::${l//%/%25}"; done
+            tail -30 build.log
+            exit 1
+          fi
+          app=$(find "$RUNNER_TEMP/dd" -name Syrup.app -type d | head -1)
+          echo "::notice title=iPhone build::$(du -sh "$app" | cut -f1) app, with $(ls "$app/PlugIns")"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iphone-build-log
+          path: apps/ios/build.log
+
+  testflight:
+    name: Uploads to TestFlight
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SYRUP_SERVER_URL: ${{ secrets.SYRUP_SERVER_URL }}
+      SYRUP_TOKEN: ${{ secrets.SYRUP_TOKEN }}
+      BUILD_NUMBER: ${{ github.run_number }}.${{ github.run_attempt }}
+    steps:
+      - name: Is everything there?
+        id: ready
+        run: |
+          missing=""
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID SYRUP_SERVER_URL; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice title=TestFlight::Not uploading yet. The repository's secrets still need:$missing (see docs/iphone.md)"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.go == 'true'
+      - name: Xcode 26
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$x"
+          xcodebuild -version
+      - name: Generate the project
+        if: steps.ready.outputs.go == 'true'
+        working-directory: apps/ios
+        run: brew install xcodegen >/dev/null && xcodegen generate
+      # Archived unsigned; Apple signs it on the way out, with the key
+      # (a cloud-managed distribution certificate, so no certificate to keep).
+      - name: Archive
+        if: steps.ready.outputs.go == 'true'
+        working-directory: apps/ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Syrup.xcodeproj -scheme Syrup -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Syrup.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            SYRUP_SERVER_URL="$SYRUP_SERVER_URL" SYRUP_TOKEN="$SYRUP_TOKEN" \
+            archive > archive.log 2>&1 || { grep -E "error: " archive.log | sort -u | head -20; tail -30 archive.log; exit 1; }
+          echo "archived build $BUILD_NUMBER"
+      - name: Sign and upload to TestFlight
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          key="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$key"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          set +e
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Syrup.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$key" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            > export.log 2>&1
+          code=$?
+          rm -f "$key"
+          grep -vE "^\s*$" export.log | tail -40
+          if [ $code -ne 0 ]; then
+            if grep -qiE "no suitable application records|app record|could not find.*app" export.log; then
+              echo "::error title=TestFlight::App Store Connect has no app with this bundle ID yet. Create it: Apps, +, New App, bundle ID com.boggiomichael.syrup (docs/iphone.md), then run this again."
+            elif grep -qiE "cloud signing|permission|not authorized|forbidden|401|403" export.log; then
+              echo "::error title=TestFlight::Apple refused the key. It needs Admin access (App Store Connect, Users and Access, Integrations)."
+            else
+              echo "::error title=TestFlight::The upload failed; the log above says why."
+            fi
+            exit 1
+          fi
+          echo "::notice title=TestFlight::Build $BUILD_NUMBER uploaded. Apple processes it for a few minutes; then it's in TestFlight."

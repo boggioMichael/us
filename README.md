@@ -17,8 +17,10 @@ once research finds them. MapleStory keeps the original syrup cap.
 ## What it does
 
 - **Watches any game**, live on Windows (a game window or the whole screen),
-  or from a recording on any system (a video, a folder of screenshots). It
-  also runs three synthetic games whose exact ground truth is known.
+  on an iPhone (the [phone app](docs/iphone.md) shows its screen to Syrup
+  running on your computer or a server, and speaks for it), or from a
+  recording on any system (a video, a folder of screenshots). It also runs
+  three synthetic games whose exact ground truth is known.
 - **Works out the screen without knowing the game.** Whatever stays still
   while the game moves is interface. Bars get their fill measured, text is
   read, and minimaps, panels and dialogs are recognised. It also tells which
@@ -75,6 +77,9 @@ syrup replay my-session.mp4 --explain --devtools
 # A synthetic game, measured against its truth:
 syrup simulate scroller --seconds 120 --truth
 
+# The brain for the iPhone app (docs/iphone.md):
+syrup serve --port 8080
+
 # Research, memory:
 syrup research "Hollow Knight" --topic Hornet
 syrup profiles
@@ -108,6 +113,7 @@ for what came from Maplesyrup.
 | [docs/plugins/writing-a-plugin.md](docs/plugins/writing-a-plugin.md) | a plugin in JSON, or in Rust |
 | [docs/decisions.md](docs/decisions.md) | the choices made and why |
 | [docs/evaluation.md](docs/evaluation.md) | measured results: synthetic games, a real recording, CI |
+| [docs/iphone.md](docs/iphone.md) | the iPhone app: its eyes, its mouth, and the brain on your computer; setting it up |
 
 ## What it never does
 

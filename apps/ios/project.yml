@@ -1,0 +1,97 @@
+# The iPhone app, as an XcodeGen spec: `xcodegen generate` writes Syrup.xcodeproj
+# (CI does; the project itself is not committed).
+#
+# Two targets:
+#   Syrup      the app: the mouth. Asks Syrup's brain what to say, and says it,
+#              from the background too.
+#   SyrupEyes  its screen broadcast: the eyes. Sends the brain a frame every
+#              half second or so while the player broadcasts.
+#
+# Build settings a build can set: SYRUP_SERVER_URL (the brain, required for a
+# useful app), SYRUP_TOKEN (for a hosted brain), SYRUP_BUNDLE_ID,
+# CURRENT_PROJECT_VERSION (the build number), DEVELOPMENT_TEAM.
+
+name: Syrup
+options:
+  bundleIdPrefix: com.boggiomichael
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    SYRUP_BUNDLE_ID: com.boggiomichael.syrup
+    SYRUP_SERVER_URL: ""
+    SYRUP_TOKEN: ""
+targets:
+  Syrup:
+    type: application
+    platform: iOS
+    sources:
+      - path: Syrup
+        excludes:
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+      - path: Syrup/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(SYRUP_BUNDLE_ID)
+        PRODUCT_NAME: Syrup
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Syrup/Info.plist
+      properties:
+        CFBundleDisplayName: Syrup
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # Speaking from the background, while a game is in front.
+        UIBackgroundModes:
+          - audio
+        ITSAppUsesNonExemptEncryption: false
+        SyrupServerURL: $(SYRUP_SERVER_URL)
+        SyrupToken: $(SYRUP_TOKEN)
+    dependencies:
+      - target: SyrupEyes
+  SyrupEyes:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SyrupEyes
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(SYRUP_BUNDLE_ID).eyes
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: SyrupEyes/Info.plist
+      properties:
+        CFBundleDisplayName: Syrup
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+        SyrupServerURL: $(SYRUP_SERVER_URL)
+        SyrupToken: $(SYRUP_TOKEN)
+schemes:
+  Syrup:
+    build:
+      targets:
+        Syrup: all
+        SyrupEyes: all
+    archive:
+      config: Release
